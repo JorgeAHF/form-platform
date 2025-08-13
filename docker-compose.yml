@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodata:/data/db
+    ports:
+      - "27017:27017"
+    restart: unless-stopped
+
+  formio:
+    # Sugerencia: fija un tag estable cuando cierres dev (ej. formio/formio:2.7.x)
+    image: formio/formio:rc
+    container_name: formio-ce
+    environment:
+      DEBUG: "formio:*"
+      ROOT_EMAIL: ${FORMIO_ROOT_EMAIL}
+      ROOT_PASSWORD: ${FORMIO_ROOT_PASSWORD}
+      NODE_CONFIG: |
+        {
+          "mongo": "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/formio-ce?authSource=admin",
+          "port": 3001,
+          "jwt": { "secret": "${FORMIO_JWT_SECRET}" }
+        }
+    depends_on:
+      - mongo
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      FILES_ROOT: /data
+      MAX_FILE_MB: ${MAX_FILE_MB}
+      ALLOWED_EXT: ${ALLOWED_EXT}
+      JWT_SECRET: ${API_JWT_SECRET}
+      # Importante para CORS (Form.io y React dev server):
+      ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
+    volumes:
+      - ./backend:/app
+      - ./storage:/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -lc "npm ci --no-audit --no-fund || npm i --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./web:/app
+      - /app/node_modules        # <- volumen anónimo para que no se borre dentro del contenedor
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mongodata:

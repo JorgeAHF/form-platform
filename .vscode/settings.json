@@ -1,0 +1,14 @@
+{
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "editor.formatOnSave": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "python.defaultInterpreterPath": "python",
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "docker.dockerComposeBuild": true,
+  "containers.composeBuild": true
+}
