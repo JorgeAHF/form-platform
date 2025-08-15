@@ -16,36 +16,6 @@ services:
       retries: 10
     restart: unless-stopped
 
-  mongo:
-    image: mongo:6
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-    volumes:
-      - mongodata:/data/db
-    ports:
-      - "27017:27017"
-    restart: unless-stopped
-
-  formio:
-    # Sugerencia: fija un tag estable cuando cierres dev (ej. formio/formio:2.7.x)
-    image: formio/formio:rc
-    container_name: formio-ce
-    environment:
-      DEBUG: "formio:*"
-      ROOT_EMAIL: ${FORMIO_ROOT_EMAIL}
-      ROOT_PASSWORD: ${FORMIO_ROOT_PASSWORD}
-      NODE_CONFIG: |
-        {
-          "mongo": "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/formio-ce?authSource=admin",
-          "port": 3001,
-          "jwt": { "secret": "${FORMIO_JWT_SECRET}" }
-        }
-    depends_on:
-      - mongo
-    ports:
-      - "3001:3001"
-    restart: unless-stopped
 
   api:
     build: ./backend
@@ -90,5 +60,4 @@ services:
 
 volumes:
   pgdata:
-  mongodata:
   web_node_modules:

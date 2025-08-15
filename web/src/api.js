@@ -208,3 +208,17 @@ export async function downloadFileById(fileId, filename, token) {
     a.remove();
     URL.revokeObjectURL(url);
 }
+
+// Vista previa en una nueva pestaña (sin "download"), útil para PDF/imagenes
+export async function previewFileById(fileId, token) {
+    const res = await fetch(`${API}/download/${fileId}`, { headers: authHeaders(token) });
+    if (!res.ok) {
+        let err = "Error al obtener archivo";
+        try { const j = await res.json(); err = j.detail || err; } catch { }
+        throw new Error(err);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    // El navegador liberará el blob al cerrar la pestaña
+}
