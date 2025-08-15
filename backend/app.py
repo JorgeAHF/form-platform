@@ -3,7 +3,7 @@ import re
 import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 from fastapi import (
     FastAPI, UploadFile, File, Form, Depends, HTTPException, status,
@@ -18,7 +18,7 @@ from passlib.hash import bcrypt
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, DateTime, ForeignKey, Text,
-    func, UniqueConstraint, desc
+    func, UniqueConstraint, desc, Boolean, text
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
@@ -57,12 +57,36 @@ class Project(Base):
 
 class Stage(Base):
     __tablename__ = "stages"
+    __table_args__ = (UniqueConstraint('project_id','code', name='uq_stage_project_code'),)
     id = Column(Integer, primary_key=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     code = Column(String(64), nullable=False)
     name = Column(String(255), nullable=False)
     order_index = Column(Integer, default=0)
     project = relationship("Project", back_populates="stages")
+
+class DeliverableSpec(Base):
+    __tablename__ = "deliverables"
+    id = Column(Integer, primary_key=True)
+    stage_id = Column(Integer, ForeignKey("stages.id", ondelete="CASCADE"), nullable=False)
+    key = Column(String(128), nullable=False)                  # único por etapa
+    title = Column(String(512), nullable=False)
+    required = Column(Boolean, default=True, nullable=False)
+    multi = Column(Boolean, default=False, nullable=False)
+    allowed_ext = Column(Text, nullable=False, default="pdf")  # csv: "pdf,docx"
+    order_index = Column(Integer, default=0)
+    optional_group = Column(String(128))
+
+    stage = relationship("Stage", back_populates="deliverables")
+
+    __table_args__ = (
+        UniqueConstraint("stage_id", "key", name="uq_deliverables_stage_key"),
+    )
+
+# relación inversa en Stage:
+Stage.deliverables = relationship(
+    "DeliverableSpec", back_populates="stage", cascade="all,delete-orphan"
+)
 
 class FileRecord(Base):
     __tablename__ = "files"
@@ -76,6 +100,12 @@ class FileRecord(Base):
     sha256 = Column(String(64))
     uploaded_by = Column(Integer, ForeignKey("users.id"))
     uploaded_at = Column(DateTime, default=func.now())
+    deliverable_id = Column(Integer, ForeignKey("deliverables.id"), nullable=True)
+    is_active = Column(Boolean, nullable=False, server_default="true")
+    version = Column(Integer, nullable=False, server_default="1")
+    reason = Column(Text)  # motivo de nueva versión (si aplica)
+    supersedes_id = Column(Integer, ForeignKey("files.id"), nullable=True)
+
 
 class ProjectMember(Base):
     __tablename__ = "project_members"
@@ -97,20 +127,30 @@ class RegistrationRequest(Base):
     decided_at = Column(DateTime, nullable=True)
     decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+# ---- Wire del seeder (import tardío para evitar circular) ----
+_seed_project = None
+try:
+    from seed_deliverables import seed_project as _seed_project
+    print("Seeder wired: True")
+except Exception as e:
+    _seed_project = None
+    print("WARN: seed_deliverables no disponible:", e)
+
+
 # ----------------- Etapas por tipo (Expediente IMT) -----------------
 STAGE_TEMPLATES = {
     "externo": [
-        ("ET-01", "1 Concertación del proyecto"),
-        ("ET-02", "2 Gestión de la propuesta técnico-económica"),
-        ("ET-03", "3 Gestión inicial del proyecto"),
-        ("ET-04", "4 Desarrollo del proyecto de investigación"),
-        ("ET-05", "5 Gestión final del proyecto"),
+        ("E1", "1 Concertación del proyecto"),
+        ("E2", "2 Gestión de la propuesta técnico-económica"),
+        ("E3", "3 Gestión inicial del proyecto"),
+        ("E4", "4 Desarrollo del proyecto de investigación"),
+        ("E5", "5 Gestión final del proyecto"),
     ],
     "interno": [
-        ("ET-01", "1 Desarrollo de propuestas para realizar investigación"),
-        ("ET-02", "2 Gestión de la autorización"),
-        ("ET-03", "3 Desarrollo del proyecto de investigación"),
-        ("ET-04", "4 Gestión final del proyecto"),
+        ("I1", "1 Desarrollo de propuestas para realizar investigación"),
+        ("I2", "2 Gestión de la autorización"),
+        ("I3", "3 Desarrollo del proyecto de investigación"),
+        ("I4", "4 Gestión final del proyecto"),
     ],
 }
 
@@ -165,6 +205,17 @@ oauth2_scheme_opt = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=Fals
 def create_db():
     Base.metadata.create_all(engine)
     FILES_ROOT.mkdir(parents=True, exist_ok=True)
+
+def safe_migrate():
+    # crea tablas nuevas (deliverables) si no existen
+    Base.metadata.create_all(engine)
+    # añade columnas a files si faltan (PostgreSQL)
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS deliverable_id integer"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS version integer DEFAULT 1"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS reason text"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS supersedes_id integer"))
 
 def get_db():
     db = SessionLocal()
@@ -259,9 +310,106 @@ def safe_folder(name: str) -> str:
 
 def seed_stages_for_project(db: Session, project: "Project"):
     tpl = STAGE_TEMPLATES.get(project.type, [])
+    # NUEVO: mapear existentes para no duplicar
+    existing = { (s.code or "").upper(): s
+                 for s in db.query(Stage).filter(Stage.project_id==project.id) }
     for idx, (code, name) in enumerate(tpl, start=1):
-        db.add(Stage(project_id=project.id, code=code, name=name, order_index=idx))
+        s = existing.get(code.upper())
+        if s:
+            s.name = name
+            s.order_index = idx
+            db.add(s)
+        else:
+            db.add(Stage(project_id=project.id, code=code, name=name, order_index=idx))
     db.commit()
+
+
+# ----------------- Expediente IMT (helpers) -----------------
+
+def _parse_allowed_ext_csv(csv: str) -> set[str]:
+    return {e.strip().lower() for e in (csv or "").split(",") if e.strip()}
+
+def _build_expediente_path(proj_code: str, stage_code: str, deliverable_key: str, version: int) -> Path:
+    date_folder = datetime.utcnow().strftime("%Y-%m-%d")
+    return (FILES_ROOT / "projects" / proj_code / "Expediente IMT"
+            / stage_code / deliverable_key / date_folder / f"v{version}")
+
+def _next_version_for_deliverable(db: Session, deliverable_id: int) -> int:
+    # Siguiente versión secuencial (sirve tanto para single como multi)
+    q = db.query(func.max(FileRecord.version)).filter(FileRecord.deliverable_id == deliverable_id)
+    maxv = q.scalar() or 0
+    return maxv + 1
+
+def _expediente_snapshot(project_id: int, db: Session) -> dict:
+    proj = db.query(Project).get(project_id)
+    if not proj:
+        raise HTTPException(404, "Proyecto no existe")
+
+    stages = db.query(Stage).filter(Stage.project_id == project_id).order_by(Stage.order_index).all()
+    out_stages = []
+    total_req = 0
+    done_req = 0
+
+    for st in stages:
+        specs = db.query(DeliverableSpec).filter(DeliverableSpec.stage_id == st.id).order_by(DeliverableSpec.order_index).all()
+        items = []
+        stage_req = 0
+        stage_done = 0
+
+        for spec in specs:
+            files = db.query(FileRecord).filter(FileRecord.deliverable_id == spec.id).order_by(FileRecord.uploaded_at.desc()).all()
+
+            # estado de cumplimiento
+            if spec.multi:
+                complete = len(files) > 0
+            else:
+                # single: debe existir 1 activo
+                active = next((f for f in files if f.is_active), None)
+                complete = active is not None
+
+            if spec.required:
+                stage_req += 1
+                if complete:
+                    stage_done += 1
+
+            items.append({
+                "deliverable_id": spec.id,
+                "key": spec.key,
+                "title": spec.title,
+                "required": spec.required,
+                "multi": spec.multi,
+                "allowed_ext": list(_parse_allowed_ext_csv(spec.allowed_ext)),
+                "optional_group": spec.optional_group,
+                "status": "completo" if complete else "faltante",
+                "files": [{
+                    "id": f.id,
+                    "filename": f.filename,
+                    "size_bytes": f.size_bytes,
+                    "content_type": f.content_type,
+                    "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+                    "uploaded_by": f.uploaded_by,
+                    "version": f.version,
+                    "is_active": f.is_active,
+                    "reason": f.reason
+                } for f in files]
+            })
+
+        pct = round(100 * stage_done / stage_req, 1) if stage_req > 0 else 0.0
+        out_stages.append({
+            "stage": {"id": st.id, "code": st.code, "name": st.name, "order": st.order_index},
+            "required_total": stage_req,
+            "required_done": stage_done,
+            "progress_percent": pct,
+            "deliverables": items
+        })
+
+        total_req += stage_req
+        done_req += stage_done
+
+    global_pct = round(100 * done_req / total_req, 1) if total_req > 0 else 0.0
+    return {"project": {"id": proj.id, "code": proj.code, "name": proj.name},
+            "required_total": total_req, "required_done": done_req,
+            "progress_percent": global_pct, "stages": out_stages}
 
 # ----------------- App -----------------
 app = FastAPI(title="Files Platform API", version="0.4.0")
@@ -281,6 +429,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db()
+    safe_migrate()
 
 # -------- Auth --------
 @app.post("/auth/register")
@@ -421,9 +570,36 @@ def create_project(
 
     (FILES_ROOT / "projects" / p.code / "Información técnica").mkdir(parents=True, exist_ok=True)
     (FILES_ROOT / "projects" / p.code / "Expediente IMT").mkdir(parents=True, exist_ok=True)
-    seed_stages_for_project(db, p)
 
-    return {"id": p.id, "code": p.code, "name": p.name, "type": p.type}
+# --- AUTO-SIEMBRA: etapas + (si hay script) entregables ---
+# --- AUTO-SIEMBRA: etapas + entregables (si hay script) ---
+    try:
+        # ¿ya hay deliverables? (idempotencia)
+        has_delivs = db.query(DeliverableSpec)\
+            .join(Stage, DeliverableSpec.stage_id == Stage.id)\
+            .filter(Stage.project_id == p.id).count() > 0
+
+        if not has_delivs:
+            if _seed_project is not None:
+                _seed_project(db, p)   # siembra etapas + checklist
+            else:
+                # fallback: intenta importar directo (evita importlib.util)
+                try:
+                    import seed_deliverables as _sd
+                    _sd.seed_project(db, p)
+                except Exception as e:
+                    print("WARN auto-seed (fallback):", e)
+
+        # Si por lo que sea sigue sin checklist, al menos siembra etapas
+        post_delivs = db.query(DeliverableSpec)\
+            .join(Stage, DeliverableSpec.stage_id == Stage.id)\
+            .filter(Stage.project_id == p.id).count() > 0
+        if not post_delivs:
+            seed_stages_for_project(db, p)
+
+    except Exception as e:
+        print("WARN auto-seed:", e)
+
 
 @app.get("/projects")
 def list_projects(db: Session = Depends(get_db), current: User = Depends(get_current_user)):
@@ -477,6 +653,22 @@ def project_progress(project_id: int, db: Session = Depends(get_db), current: Us
     done = sum(1 for r in rows if r["done"])
     pct = round(100 * done / total, 1) if total > 0 else 0.0
     return {"project": proj.code, "stages": rows, "completed_percent": pct}
+
+@app.get("/projects/{project_id}/progress-expediente")
+def progress_expediente(project_id: int, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    snap = _expediente_snapshot(project_id, db)
+    return {
+        "project": snap["project"],
+        "required_total": snap["required_total"],
+        "required_done": snap["required_done"],
+        "progress_percent": snap["progress_percent"],
+        "stages": [{
+            "stage": s["stage"],
+            "required_total": s["required_total"],
+            "required_done": s["required_done"],
+            "progress_percent": s["progress_percent"],
+        } for s in snap["stages"]]
+    }
 
 @app.post("/projects/{project_id}/members")
 def add_member(
@@ -535,6 +727,27 @@ def categories_tree(project_id: int, db: Session = Depends(get_db), current: Use
         raise HTTPException(404, "Proyecto no existe")
     ensure_member(db, current, project_id, "viewer")
     return {"project": proj.code, "type": proj.type, "tree": get_project_schema(proj.type)}
+
+@app.get("/projects/{project_id}/deliverables")
+def list_project_deliverables(project_id: int, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    stages = db.query(Stage).filter(Stage.project_id == project_id).order_by(Stage.order_index).all()
+    out = []
+    for s in stages:
+        dels = db.query(DeliverableSpec).filter(DeliverableSpec.stage_id == s.id).order_by(DeliverableSpec.order_index).all()
+        out.append({
+            "stage": {"id": s.id, "code": s.code, "name": s.name},
+            "deliverables": [{
+                "id": d.id, "key": d.key, "title": d.title,
+                "required": d.required, "multi": d.multi,
+                "allowed_ext": d.allowed_ext, "order": d.order_index,
+                "optional_group": d.optional_group
+            } for d in dels]
+        })
+    return out
+
+@app.get("/projects/{project_id}/expediente")
+def get_expediente(project_id: int, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    return _expediente_snapshot(project_id, db)
 
 # -------- Descarga & listado de archivos --------
 @app.get("/download/{file_id}")
@@ -681,7 +894,7 @@ def upload_file(
         if not stage or stage.project_id != project_id:
             raise HTTPException(400, "Etapa inválida para el proyecto")
         date_folder = datetime.utcnow().strftime("%Y-%m-%d")
-        base = FILES_ROOT / "projects" / proj.code / "Expediente IMT" / safe_folder(stage.name)
+        base = FILES_ROOT / "projects" / proj.code / "Expediente IMT" / (stage.code or safe_folder(stage.name))
         if exp_subfolder:
             base = base / safe_folder(exp_subfolder)
         dest_dir = base / date_folder
@@ -731,6 +944,113 @@ def upload_file(
         }
     }
 
+@app.post("/upload/expediente")
+def upload_expediente(
+    project_id: int = Form(...),
+    stage_id: int = Form(...),
+    deliverable_key: str = Form(...),
+    file: UploadFile = File(...),
+    reason: Optional[str] = Form(None),  # obligatorio cuando single y ya existe activo
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user)
+):
+    proj = db.query(Project).get(project_id)
+    if not proj:
+        raise HTTPException(404, "Proyecto no existe")
+
+    ensure_member(db, current, project_id, "uploader")
+
+    stage = db.query(Stage).get(stage_id)
+    if not stage or stage.project_id != project_id:
+        raise HTTPException(400, "Etapa inválida para el proyecto")
+
+    spec = db.query(DeliverableSpec).filter(
+        DeliverableSpec.stage_id == stage.id,
+        DeliverableSpec.key == deliverable_key
+    ).first()
+    if not spec:
+        raise HTTPException(404, "Entregable no encontrado en la etapa")
+
+    # Validación extensiones
+    ext = Path(file.filename).suffix.lower().lstrip(".")
+    allowed_spec = _parse_allowed_ext_csv(spec.allowed_ext)
+    if ext not in allowed_spec:
+        raise HTTPException(415, f"Extensión no permitida por el entregable: .{ext}. Permitidas: {sorted(allowed_spec)}")
+
+    # Además, respeta el filtro global ALLOWED_EXT si lo estás usando:
+    if ALLOWED_EXT and ext not in ALLOWED_EXT:
+        raise HTTPException(415, f"Extensión no permitida por la política global: .{ext}. Globalmente permitidas: {sorted(ALLOWED_EXT)}")
+
+    # Versionado / política single vs multi
+    existing_active: Optional[FileRecord] = None
+    if not spec.multi:
+        existing_active = db.query(FileRecord).filter(
+            FileRecord.deliverable_id == spec.id,
+            FileRecord.is_active == True
+        ).order_by(FileRecord.version.desc()).first()
+        if existing_active and not reason:
+            raise HTTPException(400, "Debes indicar 'reason' para crear una nueva versión de un entregable de archivo único.")
+
+    version = _next_version_for_deliverable(db, spec.id)
+    dest_dir = _build_expediente_path(proj.code, stage.code, spec.key, version)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / file.filename
+
+    # Guardado con límites
+    hasher = hashlib.sha256()
+    total = 0
+    with dest_path.open("wb") as f:
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_FILE_MB * 1024 * 1024:
+                try:
+                    dest_path.unlink()
+                except Exception:
+                    pass
+                raise HTTPException(413, f"Archivo supera {MAX_FILE_MB} MB")
+            hasher.update(chunk)
+            f.write(chunk)
+
+    # Si single y había activo, lo desactivamos (queda como versión previa)
+    supersedes_id = None
+    if existing_active:
+        existing_active.is_active = False
+        supersedes_id = existing_active.id
+        db.add(existing_active)
+
+    rec = FileRecord(
+        project_id=project_id,
+        stage_id=stage_id,
+        deliverable_id=spec.id,
+        filename=file.filename,
+        path=str(dest_path),
+        size_bytes=total,
+        content_type=file.content_type,
+        sha256=hasher.hexdigest(),
+        uploaded_by=current.id,
+        is_active=True,
+        version=version,
+        reason=reason,
+        supersedes_id=supersedes_id
+    )
+    db.add(rec); db.commit()
+
+    # Respuesta compacta + snapshot opcional
+    return {
+        "ok": True,
+        "file": {
+            "id": rec.id,
+            "filename": rec.filename,
+            "size_bytes": rec.size_bytes,
+            "version": rec.version,
+            "is_active": rec.is_active,
+            "reason": rec.reason
+        }
+    }
+
 # -------- Endpoint estilo Form.io (compat) --------
 def _user_from_token(db: Session, token: str) -> Optional[User]:
     try:
@@ -765,6 +1085,8 @@ def upload_formio(
     stage_id = stage_id_form if stage_id_form is not None else stage_id_q
     if not project_id or not stage_id:
         raise HTTPException(400, "Debes indicar project_id y stage_id")
+
+    ensure_member(db, current, project_id, "uploader")
 
     proj = db.get(Project, project_id)
     stage = db.get(Stage, stage_id)

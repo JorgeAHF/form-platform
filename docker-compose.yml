@@ -58,6 +58,9 @@ services:
       JWT_SECRET: ${API_JWT_SECRET}
       # Importante para CORS (Form.io y React dev server):
       ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
+      AUTOSEED_ENABLE: ${AUTOSEED_ENABLE}
+      AUTOSEED_PATH: /app/seed.json
+      AUTOSNAPSHOT_ON_UPLOAD: ${AUTOSNAPSHOT_ON_UPLOAD}
     volumes:
       - ./backend:/app
       - ./storage:/data
@@ -69,14 +72,18 @@ services:
     restart: unless-stopped
 
   web:
-    image: node:20-alpine
-    working_dir: /app
-    command: sh -lc "npm ci --no-audit --no-fund || npm i --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
-    volumes:
-      - ./web:/app
-      - /app/node_modules        # <- volumen anónimo para que no se borre dentro del contenedor
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    environment:
+      # Vite + Docker en Windows: poll para que detecte cambios
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
     ports:
       - "5173:5173"
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
     depends_on:
       - api
     restart: unless-stopped
@@ -84,3 +91,4 @@ services:
 volumes:
   pgdata:
   mongodata:
+  web_node_modules:

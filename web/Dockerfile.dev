@@ -1,0 +1,13 @@
+# web/Dockerfile.dev
+FROM node:20-alpine
+WORKDIR /app
+
+# Instala deps (aprovecha caché)
+COPY package.json package-lock.json* ./
+RUN npm ci || npm i
+
+# Copia el resto del código
+COPY . .
+
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

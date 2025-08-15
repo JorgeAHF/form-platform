@@ -1,116 +1,147 @@
 import React, { useEffect, useState } from "react";
-import { listRegistrationRequests, approveRegistration, rejectRegistration } from "./api";
+import toast from "react-hot-toast";
 
-const ROLE_OPTIONS = [
-    { value: "colaborador", label: "Colaborador" },
-    { value: "admin", label: "Admin" },
-];
+const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export default function RegistrationAdmin({ token, role }) {
-    const [items, setItems] = useState([]);
-    const [tab, setTab] = useState("pending"); // pending | approved | rejected
-    const [msg, setMsg] = useState("");
-    const [busy, setBusy] = useState(false);
-    const [roleToGrant, setRoleToGrant] = useState("colaborador");
-    const [rejectNote, setRejectNote] = useState("");
-
-    const isAdmin = role === "admin";
+export default function RegistrationAdmin({ token }) {
+    const [rows, setRows] = useState([]);
+    const [busyId, setBusyId] = useState(null);
+    const [defaultRole, setDefaultRole] = useState("colaborador");
+    const [reason, setReason] = useState("");
 
     async function load() {
         try {
-            const rows = await listRegistrationRequests(token, tab);
-            setItems(rows);
+            const r = await fetch(`${API}/auth/requests`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.detail || "Error cargando solicitudes");
+            setRows(j || []);
         } catch (e) {
-            setMsg(e.message);
+            toast.error(e.message);
         }
     }
 
-    useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [tab, token]);
+    useEffect(() => { load(); }, []); // eslint-disable-line
 
-    async function doApprove(id) {
-        setBusy(true); setMsg("");
+    async function approve(id) {
+        setBusyId(id);
         try {
-            await approveRegistration(token, id, roleToGrant);
+            const fd = new FormData();
+            fd.append("role", defaultRole);
+            const r = await fetch(`${API}/auth/requests/${id}/approve`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd,
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.detail || "No se pudo aprobar");
+            toast.success("Solicitud aprobada");
             await load();
-            setMsg("Solicitud aprobada.");
         } catch (e) {
-            setMsg(e.message);
+            toast.error(e.message);
         } finally {
-            setBusy(false);
+            setBusyId(null);
         }
     }
 
-    async function doReject(id) {
-        setBusy(true); setMsg("");
+    async function reject(id) {
+        setBusyId(id);
         try {
-            await rejectRegistration(token, id, rejectNote);
+            const fd = new FormData();
+            if (reason) fd.append("reason", reason);
+            const r = await fetch(`${API}/auth/requests/${id}/reject`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd,
+            });
+            if (!r.ok) {
+                const j = await r.json().catch(() => ({}));
+                throw new Error(j.detail || "No se pudo rechazar");
+            }
+            toast.success("Solicitud rechazada");
+            setReason("");
             await load();
-            setMsg("Solicitud rechazada.");
-            setRejectNote("");
         } catch (e) {
-            setMsg(e.message);
+            toast.error(e.message);
         } finally {
-            setBusy(false);
+            setBusyId(null);
         }
     }
-
-    if (!isAdmin) return <p style={{ color: "#a33" }}>Solo administradores gestionan solicitudes.</p>;
 
     return (
-        <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-            <h3>Solicitudes de registro</h3>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <button onClick={() => setTab("pending")} disabled={tab === "pending"}>Pendientes</button>
-                <button onClick={() => setTab("approved")} disabled={tab === "approved"}>Aprobadas</button>
-                <button onClick={() => setTab("rejected")} disabled={tab === "rejected"}>Rechazadas</button>
+        <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                    <label className="text-sm font-medium">Rol por defecto al aprobar</label>
+                    <select
+                        value={defaultRole}
+                        onChange={(e) => setDefaultRole(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                    >
+                        <option value="colaborador">colaborador</option>
+                        <option value="admin">admin</option>
+                    </select>
+                </div>
+                <div className="md:col-span-2">
+                    <label className="text-sm font-medium">Motivo de rechazo (opcional)</label>
+                    <input
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="Ej. Usuario duplicado / datos incompletos"
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                </div>
             </div>
 
-            {tab === "pending" && (
-                <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center" }}>
-                    <label>Rol al aprobar:</label>
-                    <select value={roleToGrant} onChange={e => setRoleToGrant(e.target.value)}>
-                        {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                    </select>
-                    <label>Motivo rechazo (opcional):</label>
-                    <input value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Motivo (si rechazas)" />
-                </div>
-            )}
-
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                    <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-                        <th style={{ padding: 6 }}>ID</th>
-                        <th style={{ padding: 6 }}>Usuario</th>
-                        <th style={{ padding: 6 }}>Estado</th>
-                        <th style={{ padding: 6 }}>Creado</th>
-                        <th style={{ padding: 6 }}>Decidido</th>
-                        <th style={{ padding: 6 }}>Nota</th>
-                        {tab === "pending" && <th style={{ padding: 6 }}>Acciones</th>}
-                    </tr>
-                </thead>
-                <tbody>
-                    {items.length === 0 ? (
-                        <tr><td colSpan={tab === "pending" ? 7 : 6} style={{ padding: 6, color: "#777" }}><em>Sin items</em></td></tr>
-                    ) : items.map(r => (
-                        <tr key={r.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                            <td style={{ padding: 6 }}>{r.id}</td>
-                            <td style={{ padding: 6 }}>{r.username}</td>
-                            <td style={{ padding: 6 }}>{r.status}</td>
-                            <td style={{ padding: 6 }}>{new Date(r.created_at).toLocaleString()}</td>
-                            <td style={{ padding: 6 }}>{r.decided_at ? new Date(r.decided_at).toLocaleString() : "-"}</td>
-                            <td style={{ padding: 6 }}>{r.note || "-"}</td>
-                            {tab === "pending" && (
-                                <td style={{ padding: 6, display: "flex", gap: 8 }}>
-                                    <button onClick={() => doApprove(r.id)} disabled={busy}>Aprobar</button>
-                                    <button onClick={() => doReject(r.id)} disabled={busy}>Rechazar</button>
-                                </td>
-                            )}
+            <div className="rounded-xl border overflow-hidden">
+                <table className="w-full border-collapse text-sm">
+                    <thead className="bg-slate-100">
+                        <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Notas</th>
+                            <th className="text-right">Acciones</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
+                        {(!rows || rows.length === 0) ? (
+                            <tr>
+                                <td colSpan="5" className="px-3 py-6 text-center text-slate-500">Sin solicitudes</td>
+                            </tr>
+                        ) : rows.map((r) => (
+                            <tr key={r.id}>
+                                <td>{new Date(r.created_at).toLocaleString()}</td>
+                                <td>{r.username}</td>
+                                <td>{r.full_name || "-"}</td>
+                                <td className="truncate">{r.notes || "-"}</td>
+                                <td className="text-right space-x-2">
+                                    <button
+                                        onClick={() => approve(r.id)}
+                                        disabled={busyId === r.id}
+                                        className="rounded-md bg-emerald-600 text-white px-3 py-1.5 hover:bg-emerald-700 disabled:opacity-50"
+                                    >
+                                        Aprobar
+                                    </button>
+                                    <button
+                                        onClick={() => reject(r.id)}
+                                        disabled={busyId === r.id}
+                                        className="rounded-md border px-3 py-1.5 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                                    >
+                                        Rechazar
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
 
-            {msg && <div style={{ marginTop: 8 }}><small>{msg}</small></div>}
+            <p className="text-xs text-slate-500">
+                * El registro por parte del usuario final lo veremos en una pantalla pública más adelante
+                (por ahora tú puedes cargar solicitudes manualmente vía API si lo necesitas).
+            </p>
         </div>
     );
 }

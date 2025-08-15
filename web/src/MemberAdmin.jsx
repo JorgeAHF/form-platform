@@ -1,189 +1,205 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-    getProjects, listMembers, searchUsers, addOrUpdateMember, removeMember
-} from "./api";
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
-const ROLES = [
-    { value: "viewer", label: "Solo lectura" },
-    { value: "uploader", label: "Puede subir" },
-    { value: "manager", label: "Gestor" },
-];
+const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export default function MemberAdmin({ token, role }) {
+export default function MemberAdmin({ token }) {
     const [projects, setProjects] = useState([]);
     const [projectId, setProjectId] = useState("");
-    const [members, setMembers] = useState([]);
-    const [query, setQuery] = useState("");
-    const [userOptions, setUserOptions] = useState([]);
-    const [userId, setUserId] = useState("");
-    const [userRole, setUserRole] = useState("uploader");
-    const [msg, setMsg] = useState("");
+    const [rows, setRows] = useState([]);
+    const [username, setUsername] = useState("");
+    const [role, setRole] = useState("viewer");
     const [busy, setBusy] = useState(false);
-
-    const canAdmin = role === "admin";
 
     useEffect(() => {
         (async () => {
             try {
-                const projs = await getProjects(token);
-                setProjects(projs);
-            } catch (e) {
-                setMsg(e.message);
-            }
+                const r = await fetch(`${API}/projects`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const j = await r.json();
+                if (r.ok) setProjects(j);
+            } catch { }
         })();
     }, [token]);
 
     useEffect(() => {
         if (!projectId) return;
-        (async () => {
-            try {
-                const ms = await listMembers(projectId, token);
-                setMembers(ms);
-            } catch (e) {
-                setMsg(e.message);
-            }
-        })();
-    }, [projectId, token]);
+        loadMembers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [projectId]);
 
-    // Búsqueda de usuarios con debounce
-    useEffect(() => {
-        if (!canAdmin) return;
-        const h = setTimeout(async () => {
-            try {
-                const rows = await searchUsers(query, token);
-                setUserOptions(rows);
-            } catch (e) {
-                // ignorar
-            }
-        }, 300);
-        return () => clearTimeout(h);
-    }, [query, token, canAdmin]);
+    async function loadMembers() {
+        try {
+            const r = await fetch(`${API}/projects/${projectId}/members`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.detail || "Error cargando miembros");
+            setRows(j);
+        } catch (e) {
+            toast.error(e.message);
+        }
+    }
 
     async function addMember() {
-        if (!projectId || !userId) return setMsg("Selecciona proyecto y usuario.");
-        setBusy(true); setMsg("");
+        if (!projectId || !username.trim()) {
+            toast.error("Selecciona proyecto y escribe el usuario");
+            return;
+        }
+        setBusy(true);
         try {
-            await addOrUpdateMember(projectId, userId, userRole, token);
-            const ms = await listMembers(projectId, token);
-            setMembers(ms);
-            setUserId("");
-            setMsg("Miembro agregado/actualizado.");
+            const fd = new FormData();
+            fd.append("username", username.trim());
+            fd.append("role", role);
+
+            const r = await fetch(`${API}/projects/${projectId}/members`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd,
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.detail || "No se pudo agregar");
+            toast.success("Miembro agregado");
+            setUsername("");
+            await loadMembers();
         } catch (e) {
-            setMsg(e.message);
+            toast.error(e.message);
         } finally {
             setBusy(false);
         }
     }
 
-    async function delMember(uid) {
-        if (!projectId) return;
-        setBusy(true); setMsg("");
+    async function updateRole(userId, newRole) {
         try {
-            await removeMember(projectId, uid, token);
-            const ms = await listMembers(projectId, token);
-            setMembers(ms);
+            const fd = new FormData();
+            fd.append("role", newRole);
+            const r = await fetch(`${API}/projects/${projectId}/members/${userId}`, {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd,
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.detail || "No se pudo actualizar el rol");
+            toast.success("Rol actualizado");
+            await loadMembers();
         } catch (e) {
-            setMsg(e.message);
-        } finally {
-            setBusy(false);
+            toast.error(e.message);
         }
     }
 
-    if (!canAdmin) {
-        return <p style={{ color: "#a33" }}>Solo administradores gestionan miembros.</p>;
+    async function removeMember(userId) {
+        if (!window.confirm("¿Eliminar este miembro del proyecto?")) return;
+        try {
+            const r = await fetch(`${API}/projects/${projectId}/members/${userId}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!r.ok) {
+                const j = await r.json().catch(() => ({}));
+                throw new Error(j.detail || "No se pudo eliminar");
+            }
+            toast.success("Miembro eliminado");
+            await loadMembers();
+        } catch (e) {
+            toast.error(e.message);
+        }
     }
 
     return (
-        <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-            <h3>Miembros del proyecto</h3>
-
-            <div style={{ display: "grid", gap: 8, maxWidth: 900 }}>
+        <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                    <label>Proyecto</label><br />
-                    <select value={projectId} onChange={e => setProjectId(e.target.value)}>
+                    <label className="text-sm font-medium">Proyecto</label>
+                    <select
+                        value={projectId}
+                        onChange={(e) => setProjectId(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                    >
                         <option value="">— Selecciona —</option>
-                        {projects.map(p => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+                        {projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                                {p.code} — {p.name}
+                            </option>
+                        ))}
                     </select>
                 </div>
 
-                {projectId && (
-                    <>
-                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr auto", alignItems: "center" }}>
-                            <div>
-                                <label>Buscar usuario</label><br />
-                                <input
-                                    placeholder="usuario (mín. 1 letra)"
-                                    value={query}
-                                    onChange={e => setQuery(e.target.value)}
-                                />
-                                <div style={{ maxHeight: 160, overflow: "auto", border: "1px solid #eee", borderRadius: 8, marginTop: 4 }}>
-                                    {userOptions.map(u => (
-                                        <div
-                                            key={u.id}
-                                            onClick={() => { setUserId(u.id); setQuery(u.username); }}
-                                            style={{
-                                                padding: "6px 8px",
-                                                cursor: "pointer",
-                                                background: u.id === userId ? "#e6f4ea" : "transparent"
-                                            }}
-                                        >
-                                            {u.username} <small>({u.role})</small>
-                                        </div>
-                                    ))}
-                                    {!userOptions.length && <div style={{ padding: 8, color: "#777" }}><em>Sin resultados</em></div>}
-                                </div>
-                            </div>
+                <div>
+                    <label className="text-sm font-medium">Usuario</label>
+                    <input
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="username"
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                </div>
 
-                            <div>
-                                <label>Rol</label><br />
-                                <select value={userRole} onChange={e => setUserRole(e.target.value)}>
-                                    {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                                </select>
-                            </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <label className="text-sm font-medium">Rol</label>
+                        <select
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                        >
+                            <option value="viewer">viewer (consulta)</option>
+                            <option value="manager">manager (gestión)</option>
+                        </select>
+                    </div>
+                    <div className="flex items-end">
+                        <button
+                            onClick={addMember}
+                            disabled={!projectId || busy}
+                            className="w-full rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                            {busy ? "Agregando..." : "Agregar"}
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-                            <div>
-                                <label>Usuario seleccionado</label><br />
-                                <input value={userId ? `${userId}` : ""} onChange={() => { }} readOnly />
-                            </div>
-
-                            <div>
-                                <button type="button" onClick={addMember} disabled={busy || !userId}>
-                                    {busy ? "Guardando..." : "Agregar / Actualizar"}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: 16 }}>
-                            <h4>Miembros actuales</h4>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                <thead>
-                                    <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-                                        <th style={{ padding: 6 }}>Usuario</th>
-                                        <th style={{ padding: 6 }}>Rol</th>
-                                        <th style={{ padding: 6 }}>Desde</th>
-                                        <th style={{ padding: 6 }}>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {members.length === 0 ? (
-                                        <tr><td colSpan="4" style={{ padding: 6, color: "#777" }}><em>Sin miembros</em></td></tr>
-                                    ) : members.map(m => (
-                                        <tr key={m.user_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                                            <td style={{ padding: 6 }}>{m.username}</td>
-                                            <td style={{ padding: 6 }}>{m.role}</td>
-                                            <td style={{ padding: 6 }}>{new Date(m.since).toLocaleString()}</td>
-                                            <td style={{ padding: 6 }}>
-                                                <button onClick={() => delMember(m.user_id)} disabled={busy}>Quitar</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
-                )}
-
-                {msg && <div><small style={{ color: msg.includes("Error") ? "#d33" : "#333" }}>{msg}</small></div>}
+            <div className="rounded-xl border overflow-hidden">
+                <table className="w-full border-collapse text-sm">
+                    <thead className="bg-slate-100">
+                        <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
+                            <th>Usuario</th>
+                            <th>Rol</th>
+                            <th className="text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
+                        {(!rows || rows.length === 0) ? (
+                            <tr>
+                                <td colSpan="3" className="px-3 py-6 text-center text-slate-500">
+                                    Sin miembros
+                                </td>
+                            </tr>
+                        ) : rows.map((m) => (
+                            <tr key={m.user_id}>
+                                <td>{m.username}</td>
+                                <td>
+                                    <select
+                                        value={m.role}
+                                        onChange={(e) => updateRole(m.user_id, e.target.value)}
+                                        className="rounded-lg border px-2 py-1"
+                                    >
+                                        <option value="viewer">viewer</option>
+                                        <option value="manager">manager</option>
+                                    </select>
+                                </td>
+                                <td className="text-right">
+                                    <button
+                                        onClick={() => removeMember(m.user_id)}
+                                        className="rounded-md border px-3 py-1.5 text-slate-700 hover:bg-slate-100"
+                                    >
+                                        Eliminar
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );

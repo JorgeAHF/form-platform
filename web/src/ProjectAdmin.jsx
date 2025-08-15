@@ -1,80 +1,110 @@
 import React, { useState } from "react";
-import { createProject } from "./api";
+import toast from "react-hot-toast";
 
-const RX_EXT = /^EE\d{4}\s+[A-Z0-9]{3,}$/;
-const RX_INT = /^EI\d{4}\s+[A-Z0-9]{3,}$/;
+const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export default function ProjectAdmin({ token, onProjectsChanged, role }) {
-    const [type, setType] = useState("externo");
+export default function ProjectAdmin({ token, onProjectsChanged }) {
+    const [type, setType] = useState("externo"); // externo | interno
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
-    const [msg, setMsg] = useState("");
-    const [creating, setCreating] = useState(false);
+    const [busy, setBusy] = useState(false);
 
-    const validCode = () => {
-        if (type === "externo") return RX_EXT.test(code.trim());
-        return RX_INT.test(code.trim());
-    };
+    function suggestPrefix(t) {
+        return t === "externo" ? "EE" : "EI";
+    }
 
-    async function handleCreateProject() {
-        setMsg("");
-        if (!validCode()) {
-            return setMsg(
-                `Código inválido para tipo ${type === "externo" ? "externo (EE#### SIGLAS)" : "interno (EI#### SIGLAS)"}`
-            );
+    function onTypeChange(v) {
+        setType(v);
+        // ayuda rápida para el formato del código
+        if (!code) setCode(`${suggestPrefix(v)}#### SIGLAS`);
+    }
+
+    async function createProject() {
+        if (!code.trim() || !name.trim()) {
+            toast.error("Completa código y nombre");
+            return;
         }
-        if (!name.trim()) return setMsg("Pon un nombre de proyecto.");
-        setCreating(true);
+        setBusy(true);
         try {
-            const p = await createProject({ code: code.trim(), name: name.trim(), type }, token);
-            setMsg(`Proyecto creado: ${p.code}`);
+            const fd = new FormData();
+            fd.append("code", code.trim());
+            fd.append("name", name.trim());
+            // si tu backend guarda type, envíalo; si no, lo ignorará
+            fd.append("type", type);
+
+            const r = await fetch(`${API}/projects`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.detail || "No se pudo crear");
+
+            toast.success(`Proyecto ${j.code} creado`);
             setCode(""); setName("");
             onProjectsChanged?.();
         } catch (e) {
-            setMsg(e.message);
+            toast.error(e.message);
         } finally {
-            setCreating(false);
+            setBusy(false);
         }
     }
 
-    if (role !== "admin") {
-        return <p style={{ color: "#a33" }}>Solo administradores pueden crear proyectos.</p>;
-    }
-
     return (
-        <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-            <h3>Crear proyecto</h3>
-            <div style={{ display: "grid", gap: 8, maxWidth: 700 }}>
+        <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                    <label>Tipo</label><br />
-                    <select value={type} onChange={e => setType(e.target.value)}>
+                    <label className="text-sm font-medium">Tipo</label>
+                    <select
+                        value={type}
+                        onChange={(e) => onTypeChange(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                    >
                         <option value="externo">Externo (EE#### SIGLAS)</option>
                         <option value="interno">Interno (EI#### SIGLAS)</option>
                     </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                        Prefijo sugerido: <b>{suggestPrefix(type)}</b>
+                    </p>
                 </div>
+
                 <div>
-                    <label>Código</label><br />
+                    <label className="text-sm font-medium">Código</label>
                     <input
-                        placeholder={type === "externo" ? "EE2225 JAHF" : "EI0525 JAHF"}
-                        value={code} onChange={e => setCode(e.target.value)}
-                        style={{ borderColor: code ? (validCode() ? "#3a3" : "#d33") : "#ccc" }}
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        placeholder={`${suggestPrefix(type)}#### SIGLAS`}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                     />
-                    <small style={{ marginLeft: 8 }}>
-                        {type === "externo" ? "EE#### SIGLAS" : "EI#### SIGLAS"}
-                    </small>
-                </div>
-                <div>
-                    <label>Nombre</label><br />
-                    <input placeholder="Nombre del proyecto" value={name} onChange={e => setName(e.target.value)} />
                 </div>
 
                 <div>
-                    <button type="button" onClick={handleCreateProject} disabled={creating}>
-                        {creating ? "Creando..." : "Crear proyecto"}
-                    </button>
+                    <label className="text-sm font-medium">Nombre</label>
+                    <input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Nombre descriptivo"
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                    />
                 </div>
+            </div>
 
-                {msg && <div><small style={{ color: msg.includes("Error") ? "#d33" : "#333" }}>{msg}</small></div>}
+            <div>
+                <button
+                    onClick={createProject}
+                    disabled={busy}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                    {busy ? "Creando..." : "Crear proyecto"}
+                </button>
+            </div>
+
+            <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">
+                <p className="font-medium mb-1">Formato recomendado</p>
+                <ul className="list-disc pl-5 space-y-1">
+                    <li>Externos: <b>EE#### SIGLAS</b> (ej. EE2225 JAHF)</li>
+                    <li>Internos: <b>EI#### SIGLAS</b> (ej. EI0525 JAHF)</li>
+                </ul>
             </div>
         </div>
     );

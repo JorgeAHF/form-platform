@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getProjects, getStages, listFiles, deleteFile } from "./api";
 
 function formatSize(bytes) {
+    if (bytes === 0) return "0 B";
     if (!bytes && bytes !== 0) return "-";
     const kb = 1024, mb = kb * 1024, gb = mb * 1024;
     if (bytes >= gb) return (bytes / gb).toFixed(2) + " GB";
@@ -38,7 +39,7 @@ export default function FilesExplorer({ token, role }) {
             try {
                 const sts = await getStages(projectId, token);
                 setStages(sts);
-            } catch (e) { }
+            } catch { }
         })();
     }, [projectId, token]);
 
@@ -63,70 +64,79 @@ export default function FilesExplorer({ token, role }) {
     }
 
     return (
-        <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-            <h3>Explorador de archivos</h3>
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr 1fr auto", alignItems: "end", marginBottom: 8 }}>
+        <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-4">
                 <div>
-                    <label>Proyecto</label><br />
-                    <select value={projectId} onChange={e => setProjectId(e.target.value)}>
+                    <label className="text-sm font-medium">Proyecto</label>
+                    <select value={projectId} onChange={e => setProjectId(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300">
                         <option value="">— Selecciona —</option>
                         {projects.map(p => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label>Etapa (Expediente)</label><br />
-                    <select value={stageId} onChange={e => setStageId(e.target.value)} disabled={!projectId}>
+                    <label className="text-sm font-medium">Etapa (Expediente)</label>
+                    <select value={stageId} onChange={e => setStageId(e.target.value)} disabled={!projectId}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-60">
                         <option value="">— Todas —</option>
                         {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label>Buscar por nombre</label><br />
-                    <input placeholder="ej. contrato, informe..." value={q} onChange={e => setQ(e.target.value)} />
+                    <label className="text-sm font-medium">Buscar por nombre</label>
+                    <input value={q} onChange={e => setQ(e.target.value)} placeholder="ej. contrato, informe..."
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
                 </div>
-                <div>
-                    <button type="button" onClick={load} disabled={busy}>{busy ? "Cargando..." : "Buscar"}</button>
+                <div className="flex items-end">
+                    <button onClick={load} disabled={busy}
+                        className="w-full rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-50">
+                        {busy ? "Cargando..." : "Buscar"}
+                    </button>
                 </div>
             </div>
 
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                    <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-                        <th style={{ padding: 6 }}>Archivo</th>
-                        <th style={{ padding: 6 }}>Etapa</th>
-                        <th style={{ padding: 6 }}>Tamaño</th>
-                        <th style={{ padding: 6 }}>Subido por</th>
-                        <th style={{ padding: 6 }}>Fecha</th>
-                        <th style={{ padding: 6 }}>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.length === 0 ? (
-                        <tr><td colSpan="6" style={{ padding: 6, color: "#777" }}><em>Sin resultados</em></td></tr>
-                    ) : rows.map(r => (
-                        <tr key={r.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                            <td style={{ padding: 6 }}>
-                                <a href={`${r.download_url}?access_token=${token}`} target="_blank" rel="noreferrer">
-                                    {r.filename}
-                                </a>
-                            </td>
-                            <td style={{ padding: 6 }}>{r.stage?.name || "-"}</td>
-                            <td style={{ padding: 6 }}>{formatSize(r.size_bytes)}</td>
-                            <td style={{ padding: 6 }}>{r.uploaded_by || "-"}</td>
-                            <td style={{ padding: 6 }}>{new Date(r.uploaded_at).toLocaleString()}</td>
-                            <td style={{ padding: 6 }}>
-                                {canDelete ? (
-                                    <button onClick={() => onDelete(r.id)}>Eliminar</button>
-                                ) : (
-                                    <span style={{ color: "#aaa" }}>—</span>
-                                )}
-                            </td>
+            <div className="rounded-xl border overflow-hidden">
+                <table className="w-full border-collapse text-sm">
+                    <thead className="bg-slate-100">
+                        <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
+                            <th>Archivo</th>
+                            <th>Etapa</th>
+                            <th>Tamaño</th>
+                            <th>Subido por</th>
+                            <th>Fecha</th>
+                            <th className="text-right">Acciones</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
+                        {rows.length === 0 ? (
+                            <tr><td colSpan="6" className="px-3 py-6 text-center text-slate-500">Sin resultados</td></tr>
+                        ) : rows.map(r => (
+                            <tr key={r.id}>
+                                <td className="truncate">
+                                    <a className="text-slate-900 hover:underline"
+                                        href={`${r.download_url}?access_token=${token}`} target="_blank" rel="noreferrer">
+                                        {r.filename}
+                                    </a>
+                                </td>
+                                <td>{r.stage?.name || "-"}</td>
+                                <td>{formatSize(r.size_bytes)}</td>
+                                <td>{r.uploaded_by || "-"}</td>
+                                <td>{new Date(r.uploaded_at).toLocaleString()}</td>
+                                <td className="text-right">
+                                    {canDelete ? (
+                                        <button onClick={() => onDelete(r.id)}
+                                            className="rounded-md border px-3 py-1.5 text-slate-700 hover:bg-slate-100">
+                                            Eliminar
+                                        </button>
+                                    ) : <span className="text-slate-300">—</span>}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
 
-            {msg && <div style={{ marginTop: 8 }}><small>{msg}</small></div>}
+            {msg && <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{msg}</div>}
         </div>
     );
 }
