@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export default function ProjectAdmin({ token, onProjectsChanged }) {
+export default function ProjectAdmin({ token, initials = "", onProjectsChanged }) {
     const [type, setType] = useState("externo"); // externo | interno
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
@@ -16,7 +16,7 @@ export default function ProjectAdmin({ token, onProjectsChanged }) {
     function onTypeChange(v) {
         setType(v);
         // ayuda rápida para el formato del código
-        if (!code) setCode(`${suggestPrefix(v)}#### SIGLAS`);
+        if (!code) setCode(`${suggestPrefix(v)}#### ${initials || "SIGLAS"}`);
     }
 
     async function createProject() {
@@ -60,8 +60,8 @@ export default function ProjectAdmin({ token, onProjectsChanged }) {
                         onChange={(e) => onTypeChange(e.target.value)}
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                     >
-                        <option value="externo">Externo (EE#### SIGLAS)</option>
-                        <option value="interno">Interno (EI#### SIGLAS)</option>
+                        <option value="externo">Externo (EE#### {initials || "SIGLAS"})</option>
+                        <option value="interno">Interno (EI#### {initials || "SIGLAS"})</option>
                     </select>
                     <p className="text-xs text-slate-500 mt-1">
                         Prefijo sugerido: <b>{suggestPrefix(type)}</b>
@@ -73,7 +73,7 @@ export default function ProjectAdmin({ token, onProjectsChanged }) {
                     <input
                         value={code}
                         onChange={(e) => setCode(e.target.value)}
-                        placeholder={`${suggestPrefix(type)}#### SIGLAS`}
+                        placeholder={`${suggestPrefix(type)}#### ${initials || "SIGLAS"}`}
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                     />
                 </div>
@@ -102,8 +102,8 @@ export default function ProjectAdmin({ token, onProjectsChanged }) {
             <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">
                 <p className="font-medium mb-1">Formato recomendado</p>
                 <ul className="list-disc pl-5 space-y-1">
-                    <li>Externos: <b>EE#### SIGLAS</b> (ej. EE2225 JAHF)</li>
-                    <li>Internos: <b>EI#### SIGLAS</b> (ej. EI0525 JAHF)</li>
+                    <li>Externos: <b>EE#### {initials || "SIGLAS"}</b> (ej. EE2225 JAHF)</li>
+                    <li>Internos: <b>EI#### {initials || "SIGLAS"}</b> (ej. EI0525 JAHF)</li>
                 </ul>
             </div>
         </div>

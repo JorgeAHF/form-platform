@@ -16,6 +16,7 @@ import ExpedienteTab from "./components/ExpedienteTab";
 export default function App() {
     const [token, setToken] = useState(localStorage.getItem("apiToken") || "");
     const [role, setRole] = useState("");
+    const [initials, setInitials] = useState(localStorage.getItem("initials") || "");
 
     // login / registro
     const [username, setUsername] = useState("");
@@ -43,6 +44,7 @@ export default function App() {
 
 
     useEffect(() => { if (token) localStorage.setItem("apiToken", token); }, [token]);
+    useEffect(() => { if (initials) localStorage.setItem("initials", initials); }, [initials]);
 
     async function doLogin(e) {
         e?.preventDefault();
@@ -50,6 +52,7 @@ export default function App() {
             const j = await login(username, password);
             setToken(j.access_token);
             setRole(j.role);
+            setInitials(j.initials || "");
             toast.success("Sesión iniciada");
             const projs = await getProjects(j.access_token);
             setProjects(projs);
@@ -62,7 +65,9 @@ export default function App() {
     function logout() {
         setToken("");
         setRole("");
+        setInitials("");
         localStorage.removeItem("apiToken");
+        localStorage.removeItem("initials");
     }
 
     async function refreshProjects() {
@@ -296,6 +301,7 @@ export default function App() {
                                 <ProjectAdmin
                                     token={token}
                                     role={role}
+                                    initials={initials}
                                     onProjectsChanged={async () => {
                                         const projs = await getProjects(token);
                                         setProjects(projs);

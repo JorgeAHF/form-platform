@@ -270,6 +270,10 @@ def ensure_member(db: Session, user: User, project_id: int, need: str = "viewer"
     if ROLE_ORDER.get(m.role, 0) < ROLE_ORDER.get(need, 0):
         raise HTTPException(403, "Permisos insuficientes")
 
+def get_initials(username: str) -> str:
+    parts = re.findall(r"[A-Za-z]+", username or "")
+    return "".join(p[0] for p in parts).upper()
+
 # ----------------- Helpers: code & folders -----------------
 def validate_project_code(code: str, ptype: str):
     if ptype == "externo":
@@ -463,11 +467,20 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     if not user or not bcrypt.verify(form.password, user.password_hash):
         raise HTTPException(401, "Credenciales inválidas")
     token = create_access_token({"sub": user.username, "role": user.role})
-    return {"access_token": token, "token_type": "bearer", "role": user.role}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "role": user.role,
+        "initials": get_initials(user.username),
+    }
 
 @app.get("/me")
 def me(current: User = Depends(get_current_user)):
-    return {"username": current.username, "role": current.role}
+    return {
+        "username": current.username,
+        "role": current.role,
+        "initials": get_initials(current.username),
+    }
 
 # --- Registro con aprobación ---
 @app.post("/auth/request-register")
