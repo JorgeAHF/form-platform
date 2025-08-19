@@ -277,7 +277,7 @@ export default function ExpedienteTab({ token }) {
                                                             <div className="font-medium">{d.title}</div>
                                                             <div className="mt-1">
                                                                 {d.required ? chip("Obligatorio") : chip("Opcional")}
-                                                                  {d.multi ? chip("Múltiple") : chip("Único")}
+                                                                {d.multi ? chip("Multiple") : chip("Único")}
                                                                 {d.allowed_ext?.length ? chip(d.allowed_ext.join(" | ").toUpperCase()) : null}
                                                             </div>
                                                         </td>
