@@ -29,6 +29,8 @@ export default function ExpTecTab({ token }) {
             try {
                 const projs = await getProjects(token);
                 setProjects(projs);
+                const pid = projs?.[0]?.id ? String(projs[0].id) : "";
+                setProjectId(pid);
             } catch (err) {
                 console.error(err);
             }
