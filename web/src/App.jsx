@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { login, requestRegister } from "./api";
 import ProjectAdmin from "./ProjectAdmin";
-import MemberAdmin from "./MemberAdmin";
 import RegistrationAdmin from "./RegistrationAdmin";
 import toast from "react-hot-toast";
-import { LogOut, Upload, Settings2, Users, ClipboardList } from "lucide-react";
+import { LogOut, Upload, Settings2, ClipboardList } from "lucide-react";
 import ExpedienteTab from "./components/ExpedienteTab";
 import ExpTecTab from "./components/ExpTecTab";
 
@@ -17,7 +16,7 @@ export default function App() {
     const [showRequestForm, setShowRequestForm] = useState(false);
     const [reqMsg, setReqMsg] = useState("");
 
-    const [tab, setTab] = useState("expTec"); // expTec | expediente | proyectos | miembros | solicitudes
+    const [tab, setTab] = useState("expTec"); // expTec | expediente | proyectos | solicitudes
 
     useEffect(() => { if (token) localStorage.setItem("apiToken", token); }, [token]);
 
@@ -117,7 +116,6 @@ export default function App() {
                             {role === "admin" && (
                                 <>
                                     <NavBtn active={tab === "proyectos"} onClick={() => setTab("proyectos")} icon={Settings2}>Proyectos</NavBtn>
-                                    <NavBtn active={tab === "miembros"} onClick={() => setTab("miembros")} icon={Users}>Miembros</NavBtn>
                                     <NavBtn active={tab === "solicitudes"} onClick={() => setTab("solicitudes")} icon={ClipboardList}>Solicitudes</NavBtn>
                                 </>
                             )}
@@ -134,10 +132,6 @@ export default function App() {
                         ) : tab === "proyectos" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
                                 <ProjectAdmin token={token} />
-                            </div>
-                        ) : tab === "miembros" ? (
-                            <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                                <MemberAdmin token={token} />
                             </div>
                         ) : tab === "solicitudes" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">

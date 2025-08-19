@@ -220,3 +220,44 @@ export async function downloadFileById(fileId, filename, token, opts = {}) {
     }
     URL.revokeObjectURL(url);
 }
+
+// -------------- usuarios y miembros --------------
+export async function listUsers(token) {
+    const r = await fetch(`${API}/users`, { headers: authHeaders(token) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error listando usuarios");
+    return j;
+}
+
+export async function listProjectMembers(projectId, token) {
+    const r = await fetch(`${API}/projects/${projectId}/members`, {
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error leyendo miembros");
+    return j;
+}
+
+export async function addProjectMember(projectId, userId, role, token) {
+    const fd = new URLSearchParams();
+    fd.append("user_id", userId);
+    fd.append("role", role);
+    const r = await fetch(`${API}/projects/${projectId}/members`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error agregando miembro");
+    return j;
+}
+
+export async function deleteProjectMember(projectId, userId, token) {
+    const r = await fetch(`${API}/projects/${projectId}/members?user_id=${userId}`, {
+        method: "DELETE",
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error eliminando miembro");
+    return j;
+}
