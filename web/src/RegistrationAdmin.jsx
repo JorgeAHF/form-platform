@@ -11,7 +11,7 @@ export default function RegistrationAdmin({ token }) {
 
     async function load() {
         try {
-            const r = await fetch(`${API}/auth/requests`, {
+            const r = await fetch(`${API}/admin/registrations?status_filter=pending`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const j = await r.json();
@@ -29,7 +29,7 @@ export default function RegistrationAdmin({ token }) {
         try {
             const fd = new FormData();
             fd.append("role", defaultRole);
-            const r = await fetch(`${API}/auth/requests/${id}/approve`, {
+            const r = await fetch(`${API}/admin/registrations/${id}/approve`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: fd,
@@ -49,8 +49,8 @@ export default function RegistrationAdmin({ token }) {
         setBusyId(id);
         try {
             const fd = new FormData();
-            if (reason) fd.append("reason", reason);
-            const r = await fetch(`${API}/auth/requests/${id}/reject`, {
+            if (reason) fd.append("note", reason);
+            const r = await fetch(`${API}/admin/registrations/${id}/reject`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: fd,
@@ -100,8 +100,8 @@ export default function RegistrationAdmin({ token }) {
                         <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
                             <th>Fecha</th>
                             <th>Usuario</th>
-                            <th>Nombre</th>
-                            <th>Notas</th>
+                            <th>Estado</th>
+                            <th>Nota</th>
                             <th className="text-right">Acciones</th>
                         </tr>
                     </thead>
@@ -114,8 +114,8 @@ export default function RegistrationAdmin({ token }) {
                             <tr key={r.id}>
                                 <td>{new Date(r.created_at).toLocaleString()}</td>
                                 <td>{r.username}</td>
-                                <td>{r.full_name || "-"}</td>
-                                <td className="truncate">{r.notes || "-"}</td>
+                                <td>{r.status}</td>
+                                <td className="truncate">{r.note || "-"}</td>
                                 <td className="text-right space-x-2">
                                     <button
                                         onClick={() => approve(r.id)}

@@ -49,6 +49,17 @@ export async function login(username, password) {
     return j; // {access_token, token_type, role}
 }
 
+export async function requestRegister(username, password) {
+    const r = await fetch(`${API}/auth/request-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: asForm({ username, password }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error en solicitud");
+    return j; // {ok, message}
+}
+
 // -------------- proyectos / etapas / categorías --------------
 export async function getProjects(token) {
     const r = await fetch(`${API}/projects`, { headers: authHeaders(token) });
@@ -188,7 +199,8 @@ export async function getProgressExpediente(projectId, token) {
 }
 
 
-export async function downloadFileById(fileId, filename, token) {
+export async function downloadFileById(fileId, filename, token, opts = {}) {
+    const { view = false } = opts;
     const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
     const res = await fetch(`${API}/download/${fileId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -200,11 +212,15 @@ export async function downloadFileById(fileId, filename, token) {
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename || `archivo-${fileId}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    if (view) {
+        window.open(url, "_blank");
+    } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename || `archivo-${fileId}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
     URL.revokeObjectURL(url);
 }

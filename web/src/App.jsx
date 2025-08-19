@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import {
     login, getProjects, getStages,
-    uploadByCategory, uploadExpedienteLegacy, getCategoryTree
+    uploadByCategory, uploadExpedienteLegacy, getCategoryTree,
+    requestRegister,
 } from "./api";
 import Dashboard from "./Dashboard";
 import ProjectAdmin from "./ProjectAdmin";
@@ -55,6 +56,18 @@ export default function App() {
             setProjects(projs);
         } catch (err) {
             toast.error(err.message || "Login inválido");
+        }
+    }
+
+    async function doRequestRegister(e) {
+        e?.preventDefault();
+        try {
+            const j = await requestRegister(username, password);
+            setReqMsg(j.message || "Solicitud enviada. Espera aprobación");
+            setUsername("");
+            setPassword("");
+        } catch (err) {
+            toast.error(err.message || "Error en solicitud");
         }
     }
 
@@ -144,20 +157,45 @@ export default function App() {
                 {!token ? (
                     <div className="mx-auto max-w-md">
                         <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                            <h2 className="text-base font-semibold mb-4">Iniciar sesión</h2>
-                            <form className="grid gap-3" onSubmit={doLogin}>
-                                <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Usuario"
-                                    value={username} onChange={e => setUsername(e.target.value)} />
-                                <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Contraseña" type="password"
-                                    value={password} onChange={e => setPassword(e.target.value)} />
-                                <button className="rounded-lg bg-slate-900 text-white px-4 py-2 hover:bg-slate-800">
-                                    Entrar
-                                </button>
-                            </form>
-
-                            <div className="mt-4 text-sm text-slate-600">
-                                ¿No tienes cuenta? Pídesela al admin o usa la opción “Solicitudes” cuando el admin esté logueado.
-                            </div>
+                            {!showRequestForm ? (
+                                <>
+                                    <h2 className="text-base font-semibold mb-4">Iniciar sesión</h2>
+                                    <form className="grid gap-3" onSubmit={doLogin}>
+                                        <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Usuario"
+                                            value={username} onChange={e => setUsername(e.target.value)} />
+                                        <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Contraseña" type="password"
+                                            value={password} onChange={e => setPassword(e.target.value)} />
+                                        <button className="rounded-lg bg-slate-900 text-white px-4 py-2 hover:bg-slate-800">
+                                            Entrar
+                                        </button>
+                                    </form>
+                                    <div className="mt-4 text-sm text-slate-600">
+                                        ¿No tienes cuenta?{' '}
+                                        <button type="button" onClick={() => { setShowRequestForm(true); setReqMsg(""); }}
+                                            className="text-slate-900 underline-offset-2 hover:underline">
+                                            Solicitar acceso
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <h2 className="text-base font-semibold mb-4">Solicitar acceso</h2>
+                                    {reqMsg && <div className="mb-3 text-sm text-emerald-600">{reqMsg}</div>}
+                                    <form className="grid gap-3" onSubmit={doRequestRegister}>
+                                        <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Usuario"
+                                            value={username} onChange={e => setUsername(e.target.value)} />
+                                        <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Contraseña" type="password"
+                                            value={password} onChange={e => setPassword(e.target.value)} />
+                                        <button className="rounded-lg bg-slate-900 text-white px-4 py-2 hover:bg-slate-800">
+                                            Enviar solicitud
+                                        </button>
+                                    </form>
+                                    <div className="mt-4 text-sm text-slate-600">
+                                        <button type="button" onClick={() => setShowRequestForm(false)}
+                                            className="text-slate-900 underline-offset-2 hover:underline">Volver al login</button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 ) : (
