@@ -13,7 +13,7 @@ export default function RegistrationAdmin({ token }) {
 
     const [users, setUsers] = useState([]);
     const [userBusy, setUserBusy] = useState(null);
-    const [newUser, setNewUser] = useState({ username: "", password: "", role: "colaborador", can_create: false });
+    const [newUser, setNewUser] = useState({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false });
 
     async function loadRegs() {
         try {
@@ -89,9 +89,9 @@ export default function RegistrationAdmin({ token }) {
     async function handleCreateUser(e) {
         e.preventDefault();
         try {
-            await createUser({ username: newUser.username, password: newUser.password, role: newUser.role, can_create: newUser.can_create }, token);
+            await createUser({ username: newUser.username, password: newUser.password, full_name: newUser.full_name, email: newUser.email, initials: newUser.initials, role: newUser.role, can_create: newUser.can_create }, token);
             toast.success("Usuario creado");
-            setNewUser({ username: "", password: "", role: "colaborador", can_create: false });
+            setNewUser({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false });
             await loadUsers();
         } catch (e) {
             toast.error(e.message);
@@ -101,7 +101,9 @@ export default function RegistrationAdmin({ token }) {
     async function handleUpdateUser(u) {
         setUserBusy(u.id);
         try {
-            await updateUser(u.id, { role: u.role, can_create: u.can_create_projects }, token);
+            const payload = { role: u.role, can_create: u.can_create_projects };
+            if (u.new_password) payload.password = u.new_password;
+            await updateUser(u.id, payload, token);
             toast.success("Actualizado");
             await loadUsers();
         } catch (e) {
@@ -162,6 +164,9 @@ export default function RegistrationAdmin({ token }) {
                         <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
                             <th>Fecha</th>
                             <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Correo</th>
+                            <th>Iniciales</th>
                             <th>Solicita crear</th>
                             <th>Estado</th>
                             <th>Nota</th>
@@ -171,12 +176,15 @@ export default function RegistrationAdmin({ token }) {
                     <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
                         {(!rows || rows.length === 0) ? (
                             <tr>
-                                <td colSpan="6" className="px-3 py-6 text-center text-slate-500">Sin solicitudes</td>
+                                <td colSpan="9" className="px-3 py-6 text-center text-slate-500">Sin solicitudes</td>
                             </tr>
                         ) : rows.map((r) => (
                             <tr key={r.id}>
                                 <td>{new Date(r.created_at).toLocaleString()}</td>
                                 <td>{r.username}</td>
+                                <td>{r.full_name}</td>
+                                <td>{r.email}</td>
+                                <td>{r.initials}</td>
                                 <td>{r.want_create ? "sí" : "no"}</td>
                                 <td>{r.status}</td>
                                 <td className="truncate">{r.note || "-"}</td>
@@ -206,6 +214,9 @@ export default function RegistrationAdmin({ token }) {
                 <form onSubmit={handleCreateUser} className="flex flex-wrap gap-2 mb-4 items-end">
                     <input value={newUser.username} onChange={e=>setNewUser({...newUser, username:e.target.value})} placeholder="Usuario" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
                     <input type="password" value={newUser.password} onChange={e=>setNewUser({...newUser, password:e.target.value})} placeholder="Contraseña" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
+                    <input value={newUser.full_name} onChange={e=>setNewUser({...newUser, full_name:e.target.value})} placeholder="Nombre completo" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
+                    <input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser, email:e.target.value})} placeholder="Correo" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
+                    <input value={newUser.initials} onChange={e=>setNewUser({...newUser, initials:e.target.value.toUpperCase()})} placeholder="Iniciales" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
                     <select value={newUser.role} onChange={e=>setNewUser({...newUser, role:e.target.value})} className="rounded-lg border px-3 py-2">
                         <option value="colaborador">colaborador</option>
                         <option value="admin">admin</option>
@@ -224,6 +235,7 @@ export default function RegistrationAdmin({ token }) {
                                 <th>Usuario</th>
                                 <th>Rol</th>
                                 <th>Puede crear</th>
+                                <th>Contraseña</th>
                                 <th className="text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -239,6 +251,15 @@ export default function RegistrationAdmin({ token }) {
                                     </td>
                                     <td>
                                         <input type="checkbox" checked={u.can_create_projects} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, can_create_projects:e.target.checked}:x))} />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="password"
+                                            value={u.new_password || ""}
+                                            onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, new_password:e.target.value}:x))}
+                                            placeholder="Nueva"
+                                            className="border rounded px-2 py-1"
+                                        />
                                     </td>
                                     <td className="text-right space-x-2">
                                         <button onClick={()=>handleUpdateUser(u)} disabled={userBusy===u.id} className="rounded-md border px-2 py-1 text-xs hover:bg-slate-100">Guardar</button>

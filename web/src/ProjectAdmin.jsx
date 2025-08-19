@@ -4,9 +4,9 @@ import { getProjects, listUsers, listProjectMembers, addProjectMember, deletePro
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export default function ProjectAdmin({ token, role, canCreate }) {
+export default function ProjectAdmin({ token, role, canCreate, initials }) {
     const [type, setType] = useState("externo"); // externo | interno
-    const [code, setCode] = useState("");
+    const [code, setCode] = useState(""); // 4 dígitos
     const [name, setName] = useState("");
     const [busy, setBusy] = useState(false);
 
@@ -46,6 +46,10 @@ export default function ProjectAdmin({ token, role, canCreate }) {
     async function createProject() {
         if (!code.trim() || !name.trim()) {
             toast.error("Completa código y nombre");
+            return;
+        }
+        if (!/^\d{4}$/.test(code.trim())) {
+            toast.error("Clave inválida (debe tener 4 dígitos)");
             return;
         }
         setBusy(true);
@@ -174,13 +178,15 @@ export default function ProjectAdmin({ token, role, canCreate }) {
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium">Código</label>
+                            <label className="text-sm font-medium">Clave</label>
                             <input
                                 value={code}
-                                onChange={(e) => setCode(e.target.value)}
-                                placeholder={`${suggestPrefix(type)}#### SIGLAS`}
+                                maxLength={4}
+                                onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
+                                placeholder="####"
                                 className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                             />
+                            <p className="text-xs text-slate-500 mt-1">Código final: <b>{`${suggestPrefix(type)}${code}${initials ? ` ${initials}` : ""}`}</b></p>
                         </div>
 
                         <div>
@@ -205,10 +211,10 @@ export default function ProjectAdmin({ token, role, canCreate }) {
                     </div>
 
                     <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">
-                        <p className="font-medium mb-1">Formato recomendado</p>
+                        <p className="font-medium mb-1">El código se genera automáticamente</p>
                         <ul className="list-disc pl-5 space-y-1">
-                            <li>Externos: <b>EE#### SIGLAS</b> (ej. EE2225 JAHF)</li>
-                            <li>Internos: <b>EI#### SIGLAS</b> (ej. EI0525 JAHF)</li>
+                            <li>Externos: <b>EE#### {initials}</b></li>
+                            <li>Internos: <b>EI#### {initials}</b></li>
                         </ul>
                     </div>
                 </>

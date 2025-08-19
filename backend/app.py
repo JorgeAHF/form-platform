@@ -42,6 +42,9 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(64), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    initials = Column(String(16), nullable=False)
     role = Column(String(32), nullable=False, default="colaborador")  # admin | colaborador
     can_create_projects = Column(Boolean, nullable=False, server_default="false")
     created_at = Column(DateTime, default=func.now())
@@ -122,6 +125,9 @@ class RegistrationRequest(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(64), nullable=False)
     password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    initials = Column(String(16), nullable=False)
     status = Column(String(16), nullable=False, default="pending")  # pending|approved|rejected
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
@@ -218,6 +224,12 @@ def safe_migrate():
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS version integer DEFAULT 1"))
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS reason text"))
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS supersedes_id integer"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name varchar(255)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email varchar(255)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS initials varchar(16)"))
+        conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS full_name varchar(255)"))
+        conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS email varchar(255)"))
+        conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS initials varchar(16)"))
 
 def get_db():
     db = SessionLocal()
@@ -451,6 +463,9 @@ def on_startup():
 def register(
     username: str = Form(...),
     password: str = Form(...),
+    full_name: str = Form(...),
+    email: str = Form(...),
+    initials: str = Form(...),
     role: str = Form("colaborador"),
     db: Session = Depends(get_db),
     current_opt: Optional[User] = Depends(get_current_user_optional),
@@ -458,7 +473,7 @@ def register(
     # Solo libre si es el PRIMER usuario; de lo contrario requiere admin
     if db.query(User).count() == 0:
         hashed = bcrypt.hash(password)
-        user = User(username=username, password_hash=hashed, role="admin")
+        user = User(username=username, password_hash=hashed, role="admin", full_name=full_name, email=email, initials=initials)
         db.add(user); db.commit()
         return {"ok": True, "user": {"username": username, "role": user.role}, "bootstrap": True}
 
@@ -468,7 +483,7 @@ def register(
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(400, "Usuario ya existe")
     hashed = bcrypt.hash(password)
-    user = User(username=username, password_hash=hashed, role=role)
+    user = User(username=username, password_hash=hashed, role=role, full_name=full_name, email=email, initials=initials)
     db.add(user); db.commit()
     return {"ok": True, "user": {"username": username, "role": user.role}, "bootstrap": False}
 
@@ -478,15 +493,38 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     if not user or not bcrypt.verify(form.password, user.password_hash):
         raise HTTPException(401, "Credenciales inválidas")
     token = create_access_token({"sub": user.username, "role": user.role})
-    return {"access_token": token, "token_type": "bearer", "role": user.role, "can_create_projects": user.can_create_projects}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "role": user.role,
+        "can_create_projects": user.can_create_projects,
+        "full_name": user.full_name,
+        "email": user.email,
+        "initials": user.initials,
+    }
 
 @app.get("/me")
 def me(current: User = Depends(get_current_user)):
-    return {"username": current.username, "role": current.role, "can_create_projects": current.can_create_projects}
+    return {
+        "username": current.username,
+        "role": current.role,
+        "can_create_projects": current.can_create_projects,
+        "full_name": current.full_name,
+        "email": current.email,
+        "initials": current.initials,
+    }
 
 # --- Registro con aprobación ---
 @app.post("/auth/request-register")
-def request_register(username: str = Form(...), password: str = Form(...), want_create: bool = Form(False), db: Session = Depends(get_db)):
+def request_register(
+    username: str = Form(...),
+    password: str = Form(...),
+    full_name: str = Form(...),
+    email: str = Form(...),
+    initials: str = Form(...),
+    want_create: bool = Form(False),
+    db: Session = Depends(get_db),
+):
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(400, "Usuario ya existe")
     existing = db.query(RegistrationRequest).filter(
@@ -498,6 +536,9 @@ def request_register(username: str = Form(...), password: str = Form(...), want_
     rr = RegistrationRequest(
         username=username.strip(),
         password_hash=bcrypt.hash(password),
+        full_name=full_name.strip(),
+        email=email.strip(),
+        initials=initials.strip(),
         status="pending",
         want_create=want_create,
     )
@@ -518,6 +559,9 @@ def list_registrations(
         {
             "id": r.id,
             "username": r.username,
+            "full_name": r.full_name,
+            "email": r.email,
+            "initials": r.initials,
             "status": r.status,
             "note": r.note,
             "want_create": r.want_create,
@@ -549,7 +593,15 @@ def approve_registration(
         raise HTTPException(409, "Usuario ya existe; solicitud marcada como rechazada")
 
     allow = can_create if can_create is not None else rr.want_create
-    user = User(username=rr.username, password_hash=rr.password_hash, role=role, can_create_projects=allow)
+    user = User(
+        username=rr.username,
+        password_hash=rr.password_hash,
+        role=role,
+        full_name=rr.full_name,
+        email=rr.email,
+        initials=rr.initials,
+        can_create_projects=allow,
+    )
     db.add(user)
     rr.status = "approved"
     rr.decided_at = func.now()
@@ -577,7 +629,7 @@ def reject_registration(
 # -------- Proyectos / Etapas / Miembros --------
 @app.post("/projects", status_code=201)
 def create_project(
-    code: str = Form(...),
+    code: str = Form(...),  # 4 dígitos
     name: str = Form(...),
     type: str = Form("externo"),
     db: Session = Depends(get_db),
@@ -586,10 +638,14 @@ def create_project(
     type = type.lower().strip()
     if type not in ("externo", "interno"):
         raise HTTPException(400, "type debe ser 'externo' o 'interno'")
-    validate_project_code(code, type)
-    if db.query(Project).filter(Project.code == code).first():
+    if not re.match(r"^\d{4}$", code.strip()):
+        raise HTTPException(400, "Clave debe ser 4 dígitos numéricos")
+    prefix = "EE" if type == "externo" else "EI"
+    final_code = f"{prefix}{code.strip()} {current.initials.upper()}"
+    validate_project_code(final_code, type)
+    if db.query(Project).filter(Project.code == final_code).first():
         raise HTTPException(400, "Código de proyecto ya existe")
-    p = Project(code=code, name=name, type=type, created_by=current.id)
+    p = Project(code=final_code, name=name, type=type, created_by=current.id)
     db.add(p)
     db.commit()
     db.refresh(p)
@@ -762,12 +818,27 @@ def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), cu
         like = f"%{q.strip()}%"
         qry = qry.filter(User.username.ilike(like))
     rows = qry.order_by(User.created_at.desc()).limit(50).all()
-    return [{"id": u.id, "username": u.username, "role": u.role, "created_at": u.created_at, "can_create_projects": u.can_create_projects} for u in rows]
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "full_name": u.full_name,
+            "email": u.email,
+            "initials": u.initials,
+            "role": u.role,
+            "created_at": u.created_at,
+            "can_create_projects": u.can_create_projects,
+        }
+        for u in rows
+    ]
 
 @app.post("/users", status_code=201)
 def create_user(
     username: str = Form(...),
     password: str = Form(...),
+    full_name: str = Form(...),
+    email: str = Form(...),
+    initials: str = Form(...),
     role: str = Form("colaborador"),
     can_create: bool = Form(False),
     db: Session = Depends(get_db),
@@ -775,9 +846,25 @@ def create_user(
 ):
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(400, "Usuario ya existe")
-    u = User(username=username.strip(), password_hash=bcrypt.hash(password), role=role, can_create_projects=can_create)
+    u = User(
+        username=username.strip(),
+        password_hash=bcrypt.hash(password),
+        role=role,
+        full_name=full_name.strip(),
+        email=email.strip(),
+        initials=initials.strip(),
+        can_create_projects=can_create,
+    )
     db.add(u); db.commit()
-    return {"id": u.id, "username": u.username, "role": u.role, "can_create_projects": u.can_create_projects}
+    return {
+        "id": u.id,
+        "username": u.username,
+        "full_name": u.full_name,
+        "email": u.email,
+        "initials": u.initials,
+        "role": u.role,
+        "can_create_projects": u.can_create_projects,
+    }
 
 @app.patch("/users/{user_id}")
 def update_user(
@@ -785,6 +872,9 @@ def update_user(
     role: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     can_create: Optional[bool] = Form(None),
+    full_name: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    initials: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
@@ -797,6 +887,12 @@ def update_user(
         u.password_hash = bcrypt.hash(password)
     if can_create is not None:
         u.can_create_projects = can_create
+    if full_name:
+        u.full_name = full_name
+    if email:
+        u.email = email
+    if initials:
+        u.initials = initials
     db.commit()
     return {"ok": True}
 

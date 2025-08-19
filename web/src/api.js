@@ -49,11 +49,11 @@ export async function login(username, password) {
     return j; // {access_token, token_type, role, can_create_projects}
 }
 
-export async function requestRegister(username, password, wantCreate = false) {
+export async function requestRegister(username, password, wantCreate = false, full_name, email, initials) {
     const r = await fetch(`${API}/auth/request-register`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: asForm({ username, password, want_create: wantCreate }),
+        body: asForm({ username, password, want_create: wantCreate, full_name, email, initials }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Error en solicitud");
