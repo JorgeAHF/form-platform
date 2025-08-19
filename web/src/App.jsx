@@ -113,11 +113,9 @@ export default function App() {
                         <div className="flex flex-wrap gap-2 mb-4">
                             <NavBtn active={tab === "expTec"} onClick={() => setTab("expTec")} icon={Upload}>Expediente Técnico</NavBtn>
                             <NavBtn active={tab === "expediente"} onClick={() => setTab("expediente")}>Expediente IMT</NavBtn>
+                            <NavBtn active={tab === "proyectos"} onClick={() => setTab("proyectos")} icon={Settings2}>Proyectos</NavBtn>
                             {role === "admin" && (
-                                <>
-                                    <NavBtn active={tab === "proyectos"} onClick={() => setTab("proyectos")} icon={Settings2}>Proyectos</NavBtn>
-                                    <NavBtn active={tab === "solicitudes"} onClick={() => setTab("solicitudes")} icon={ClipboardList}>Solicitudes</NavBtn>
-                                </>
+                                <NavBtn active={tab === "solicitudes"} onClick={() => setTab("solicitudes")} icon={ClipboardList}>Solicitudes</NavBtn>
                             )}
                         </div>
 
@@ -131,7 +129,7 @@ export default function App() {
                             </div>
                         ) : tab === "proyectos" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                                <ProjectAdmin token={token} />
+                                <ProjectAdmin token={token} role={role} />
                             </div>
                         ) : tab === "solicitudes" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">

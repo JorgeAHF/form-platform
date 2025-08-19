@@ -18,7 +18,7 @@ from passlib.hash import bcrypt
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, DateTime, ForeignKey, Text,
-    func, UniqueConstraint, desc, Boolean, text
+    func, UniqueConstraint, desc, Boolean, text, or_
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
@@ -269,6 +269,14 @@ def ensure_member(db: Session, user: User, project_id: int, need: str = "viewer"
         raise HTTPException(403, "No eres miembro de este proyecto")
     if ROLE_ORDER.get(m.role, 0) < ROLE_ORDER.get(need, 0):
         raise HTTPException(403, "Permisos insuficientes")
+
+def require_owner_or_admin(db: Session, project_id: int, user: User) -> Project:
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "Proyecto no existe")
+    if not is_admin(user) and proj.created_by != user.id:
+        raise HTTPException(403, "Solo el dueño puede gestionar miembros")
+    return proj
 
 # ----------------- Helpers: code & folders -----------------
 def validate_project_code(code: str, ptype: str):
@@ -570,6 +578,9 @@ def create_project(
     db.commit()
     db.refresh(p)
 
+    db.add(ProjectMember(project_id=p.id, user_id=current.id, role="manager"))
+    db.commit()
+
     (FILES_ROOT / "projects" / p.code / "Información técnica").mkdir(parents=True, exist_ok=True)
     (FILES_ROOT / "projects" / p.code / "Expediente IMT").mkdir(parents=True, exist_ok=True)
 
@@ -608,14 +619,26 @@ def create_project(
 @app.get("/projects")
 def list_projects(db: Session = Depends(get_db), current: User = Depends(get_current_user)):
     if is_admin(current):
-        rows = db.query(Project).order_by(Project.created_at.desc()).all()
+        rows = (
+            db.query(Project, ProjectMember.role)
+            .outerjoin(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == current.id))
+            .order_by(Project.created_at.desc())
+            .all()
+        )
     else:
-        rows = (db.query(Project)
-                  .join(ProjectMember, ProjectMember.project_id == Project.id)
-                  .filter(ProjectMember.user_id == current.id)
-                  .order_by(Project.created_at.desc())
-                  .all())
-    return [{"id": p.id, "code": p.code, "name": p.name, "type": p.type} for p in rows]
+        rows = (
+            db.query(Project, ProjectMember.role)
+            .outerjoin(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == current.id))
+            .filter(or_(ProjectMember.user_id == current.id, Project.created_by == current.id))
+            .order_by(Project.created_at.desc())
+            .all()
+        )
+    out = []
+    for p, role in rows:
+        is_owner = p.created_by == current.id
+        my_role = role or ("owner" if is_owner else None)
+        out.append({"id": p.id, "code": p.code, "name": p.name, "type": p.type, "role": my_role, "is_owner": is_owner})
+    return out
 
 @app.post("/projects/{project_id}/stages")
 def add_stage(
@@ -680,11 +703,9 @@ def add_member(
     user_id: int = Form(...),
     role: str = Form("uploader"),
     db: Session = Depends(get_db),
-    current: User = Depends(require_admin),
+    current: User = Depends(get_current_user),
 ):
-    proj = db.get(Project, project_id)
-    if not proj:
-        raise HTTPException(404, "Proyecto no existe")
+    require_owner_or_admin(db, project_id, current)
     exists = db.query(ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
     if exists:
         exists.role = role
@@ -694,7 +715,8 @@ def add_member(
     return {"ok": True}
 
 @app.get("/projects/{project_id}/members")
-def list_members_admin(project_id: int, db: Session = Depends(get_db), current: User = Depends(require_admin)):
+def list_members(project_id: int, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    require_owner_or_admin(db, project_id, current)
     rows = (
         db.query(ProjectMember, User)
         .join(User, User.id == ProjectMember.user_id)
@@ -707,7 +729,8 @@ def list_members_admin(project_id: int, db: Session = Depends(get_db), current: 
     ]
 
 @app.delete("/projects/{project_id}/members")
-def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depends(get_db), current: User = Depends(require_admin)):
+def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    require_owner_or_admin(db, project_id, current)
     pm = db.query(ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
     if not pm:
         raise HTTPException(404, "Miembro no encontrado en el proyecto")
@@ -716,7 +739,7 @@ def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depe
     return {"ok": True}
 
 @app.get("/users")
-def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), current: User = Depends(require_admin)):
+def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), current: User = Depends(get_current_user)):
     qry = db.query(User)
     if q:
         like = f"%{q.strip()}%"
