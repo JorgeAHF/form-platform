@@ -10,11 +10,13 @@ import ExpTecTab from "./components/ExpTecTab";
 export default function App() {
     const [token, setToken] = useState(localStorage.getItem("apiToken") || "");
     const [role, setRole] = useState("");
+    const [canCreate, setCanCreate] = useState(false);
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showRequestForm, setShowRequestForm] = useState(false);
     const [reqMsg, setReqMsg] = useState("");
+    const [wantCreate, setWantCreate] = useState(false);
 
     const [tab, setTab] = useState("expTec"); // expTec | expediente | proyectos | solicitudes
 
@@ -26,6 +28,7 @@ export default function App() {
             const j = await login(username, password);
             setToken(j.access_token);
             setRole(j.role);
+            setCanCreate(j.can_create_projects);
             toast.success("Sesión iniciada");
         } catch (err) {
             toast.error(err.message || "Login inválido");
@@ -35,10 +38,11 @@ export default function App() {
     async function doRequestRegister(e) {
         e?.preventDefault();
         try {
-            const j = await requestRegister(username, password);
+            const j = await requestRegister(username, password, wantCreate);
             setReqMsg(j.message || "Solicitud enviada. Espera aprobación");
             setUsername("");
             setPassword("");
+            setWantCreate(false);
         } catch (err) {
             toast.error(err.message || "Error en solicitud");
         }
@@ -47,6 +51,7 @@ export default function App() {
     function logout() {
         setToken("");
         setRole("");
+        setCanCreate(false);
         localStorage.removeItem("apiToken");
     }
 
@@ -99,6 +104,10 @@ export default function App() {
                                     <form className="grid gap-3" onSubmit={doRequestRegister}>
                                         <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Usuario" value={username} onChange={e => setUsername(e.target.value)} />
                                         <input className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" placeholder="Contraseña" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                                        <label className="inline-flex items-center gap-2 text-sm">
+                                            <input type="checkbox" checked={wantCreate} onChange={e => setWantCreate(e.target.checked)} />
+                                            Solicitar permiso para crear proyectos
+                                        </label>
                                         <button className="rounded-lg bg-slate-900 text-white px-4 py-2 hover:bg-slate-800">Enviar solicitud</button>
                                     </form>
                                     <div className="mt-4 text-sm text-slate-600">
@@ -129,7 +138,7 @@ export default function App() {
                             </div>
                         ) : tab === "proyectos" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                                <ProjectAdmin token={token} role={role} />
+                                <ProjectAdmin token={token} role={role} canCreate={canCreate} />
                             </div>
                         ) : tab === "solicitudes" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">

@@ -46,14 +46,14 @@ export async function login(username, password) {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Credenciales inválidas");
-    return j; // {access_token, token_type, role}
+    return j; // {access_token, token_type, role, can_create_projects}
 }
 
-export async function requestRegister(username, password) {
+export async function requestRegister(username, password, wantCreate = false) {
     const r = await fetch(`${API}/auth/request-register`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: asForm({ username, password }),
+        body: asForm({ username, password, want_create: wantCreate }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Error en solicitud");
@@ -226,6 +226,40 @@ export async function listUsers(token) {
     const r = await fetch(`${API}/users`, { headers: authHeaders(token) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Error listando usuarios");
+    return j;
+}
+
+export async function createUser(data, token) {
+    const fd = asForm(data);
+    const r = await fetch(`${API}/users`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error creando usuario");
+    return j;
+}
+
+export async function updateUser(id, data, token) {
+    const fd = asForm(data);
+    const r = await fetch(`${API}/users/${id}`, {
+        method: "PATCH",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error actualizando usuario");
+    return j;
+}
+
+export async function deleteUser(id, token) {
+    const r = await fetch(`${API}/users/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error eliminando usuario");
     return j;
 }
 

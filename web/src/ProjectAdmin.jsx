@@ -4,7 +4,7 @@ import { getProjects, listUsers, listProjectMembers, addProjectMember, deletePro
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export default function ProjectAdmin({ token, role }) {
+export default function ProjectAdmin({ token, role, canCreate }) {
     const [type, setType] = useState("externo"); // externo | interno
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
@@ -221,7 +221,7 @@ export default function ProjectAdmin({ token, role }) {
                 )}
             </div>
 
-            {role === "admin" && (
+            {(role === "admin" || canCreate) && (
                 <>
                     <div className="grid gap-4 md:grid-cols-3">
                         <div>
