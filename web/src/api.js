@@ -1,5 +1,5 @@
 // web/src/api.js
-const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // -------------- helpers --------------
 function authHeaders(token) {
@@ -46,7 +46,18 @@ export async function login(username, password) {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Credenciales inválidas");
-    return j; // {access_token, token_type, role}
+    return j; // {access_token, token_type, role, can_create_projects}
+}
+
+export async function requestRegister(username, password, wantCreate = false) {
+    const r = await fetch(`${API}/auth/request-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: asForm({ username, password, want_create: wantCreate }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error en solicitud");
+    return j; // {ok, message}
 }
 
 // -------------- proyectos / etapas / categorías --------------
@@ -67,16 +78,12 @@ export async function getStages(projectId, token) {
 }
 
 export async function getCategoryTree(projectId, token) {
-    const r = await fetch(`${API}/projects/${projectId}/categories/tree`, {
+    const r = await fetch(`${API}/projects/${projectId}/categories`, {
         headers: { Authorization: `Bearer ${token}` },
     });
-    if (r.status === 404) {
-        // Si aún no existe el endpoint en backend, no revientes el flujo.
-        return { sections: [] };
-    }
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Error leyendo categorías");
-    return j; // { sections: [...] }
+    return j.tree || j; // {sections:[...]} o {tree:{...}}
 }
 
 // -------------- subidas --------------
@@ -95,7 +102,7 @@ export function uploadByCategory(projectId, sectionKey, categoryKey, subcategory
     fd.append("category_key", categoryKey);
     if (subcategoryKey) fd.append("subcategory_key", subcategoryKey);
     fd.append("file", file);
-    return xhrUpload(`${API}/upload/by-category`, fd, token, onProgress);
+    return xhrUpload(`${API}/upload`, fd, token, onProgress);
 }
 
 // -------------- archivos --------------
@@ -212,4 +219,79 @@ export async function downloadFileById(fileId, filename, token, opts = {}) {
         a.remove();
     }
     URL.revokeObjectURL(url);
+}
+
+// -------------- usuarios y miembros --------------
+export async function listUsers(token) {
+    const r = await fetch(`${API}/users`, { headers: authHeaders(token) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error listando usuarios");
+    return j;
+}
+
+export async function createUser(data, token) {
+    const fd = asForm(data);
+    const r = await fetch(`${API}/users`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error creando usuario");
+    return j;
+}
+
+export async function updateUser(id, data, token) {
+    const fd = asForm(data);
+    const r = await fetch(`${API}/users/${id}`, {
+        method: "PATCH",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error actualizando usuario");
+    return j;
+}
+
+export async function deleteUser(id, token) {
+    const r = await fetch(`${API}/users/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error eliminando usuario");
+    return j;
+}
+
+export async function listProjectMembers(projectId, token) {
+    const r = await fetch(`${API}/projects/${projectId}/members`, {
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error leyendo miembros");
+    return j;
+}
+
+export async function addProjectMember(projectId, userId, role, token) {
+    const fd = new URLSearchParams();
+    fd.append("user_id", userId);
+    fd.append("role", role);
+    const r = await fetch(`${API}/projects/${projectId}/members`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error agregando miembro");
+    return j;
+}
+
+export async function deleteProjectMember(projectId, userId, token) {
+    const r = await fetch(`${API}/projects/${projectId}/members?user_id=${userId}`, {
+        method: "DELETE",
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error eliminando miembro");
+    return j;
 }

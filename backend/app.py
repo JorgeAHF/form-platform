@@ -18,7 +18,7 @@ from passlib.hash import bcrypt
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, DateTime, ForeignKey, Text,
-    func, UniqueConstraint, desc, Boolean, text
+    func, UniqueConstraint, desc, Boolean, text, or_
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
@@ -43,6 +43,7 @@ class User(Base):
     username = Column(String(64), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(32), nullable=False, default="colaborador")  # admin | colaborador
+    can_create_projects = Column(Boolean, nullable=False, server_default="false")
     created_at = Column(DateTime, default=func.now())
 
 class Project(Base):
@@ -126,6 +127,7 @@ class RegistrationRequest(Base):
     created_at = Column(DateTime, default=func.now())
     decided_at = Column(DateTime, nullable=True)
     decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    want_create = Column(Boolean, nullable=False, server_default="false")
 
 # ---- Wire del seeder (import tardío para evitar circular) ----
 _seed_project = None
@@ -256,6 +258,11 @@ def require_admin(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Se requiere rol admin")
     return user
 
+def require_creator(user: User = Depends(get_current_user)):
+    if user.role == "admin" or user.can_create_projects:
+        return user
+    raise HTTPException(status_code=403, detail="Se requiere privilegio de creación")
+
 ROLE_ORDER = {"viewer": 0, "uploader": 1, "manager": 2, "admin": 3}
 
 def is_admin(u: User) -> bool:
@@ -269,6 +276,14 @@ def ensure_member(db: Session, user: User, project_id: int, need: str = "viewer"
         raise HTTPException(403, "No eres miembro de este proyecto")
     if ROLE_ORDER.get(m.role, 0) < ROLE_ORDER.get(need, 0):
         raise HTTPException(403, "Permisos insuficientes")
+
+def require_owner_or_admin(db: Session, project_id: int, user: User) -> Project:
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "Proyecto no existe")
+    if not is_admin(user) and proj.created_by != user.id:
+        raise HTTPException(403, "Solo el dueño puede gestionar miembros")
+    return proj
 
 # ----------------- Helpers: code & folders -----------------
 def validate_project_code(code: str, ptype: str):
@@ -463,15 +478,15 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     if not user or not bcrypt.verify(form.password, user.password_hash):
         raise HTTPException(401, "Credenciales inválidas")
     token = create_access_token({"sub": user.username, "role": user.role})
-    return {"access_token": token, "token_type": "bearer", "role": user.role}
+    return {"access_token": token, "token_type": "bearer", "role": user.role, "can_create_projects": user.can_create_projects}
 
 @app.get("/me")
 def me(current: User = Depends(get_current_user)):
-    return {"username": current.username, "role": current.role}
+    return {"username": current.username, "role": current.role, "can_create_projects": current.can_create_projects}
 
 # --- Registro con aprobación ---
 @app.post("/auth/request-register")
-def request_register(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+def request_register(username: str = Form(...), password: str = Form(...), want_create: bool = Form(False), db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(400, "Usuario ya existe")
     existing = db.query(RegistrationRequest).filter(
@@ -483,7 +498,8 @@ def request_register(username: str = Form(...), password: str = Form(...), db: S
     rr = RegistrationRequest(
         username=username.strip(),
         password_hash=bcrypt.hash(password),
-        status="pending"
+        status="pending",
+        want_create=want_create,
     )
     db.add(rr); db.commit()
     return {"ok": True, "message": "Solicitud enviada. Un administrador la revisará."}
@@ -500,8 +516,14 @@ def list_registrations(
     rows = q.order_by(desc(RegistrationRequest.created_at)).limit(200).all()
     return [
         {
-            "id": r.id, "username": r.username, "status": r.status, "note": r.note,
-            "created_at": r.created_at, "decided_at": r.decided_at, "decided_by": r.decided_by
+            "id": r.id,
+            "username": r.username,
+            "status": r.status,
+            "note": r.note,
+            "want_create": r.want_create,
+            "created_at": r.created_at,
+            "decided_at": r.decided_at,
+            "decided_by": r.decided_by,
         }
         for r in rows
     ]
@@ -510,6 +532,7 @@ def list_registrations(
 def approve_registration(
     req_id: int,
     role: str = Form("colaborador"),
+    can_create: Optional[bool] = Form(None),
     db: Session = Depends(get_db),
     current: User = Depends(require_admin)
 ):
@@ -525,7 +548,8 @@ def approve_registration(
         db.commit()
         raise HTTPException(409, "Usuario ya existe; solicitud marcada como rechazada")
 
-    user = User(username=rr.username, password_hash=rr.password_hash, role=role)
+    allow = can_create if can_create is not None else rr.want_create
+    user = User(username=rr.username, password_hash=rr.password_hash, role=role, can_create_projects=allow)
     db.add(user)
     rr.status = "approved"
     rr.decided_at = func.now()
@@ -551,13 +575,13 @@ def reject_registration(
     return {"ok": True}
 
 # -------- Proyectos / Etapas / Miembros --------
-@app.post("/projects")
+@app.post("/projects", status_code=201)
 def create_project(
     code: str = Form(...),
     name: str = Form(...),
     type: str = Form("externo"),
     db: Session = Depends(get_db),
-    current: User = Depends(require_admin),
+    current: User = Depends(require_creator),
 ):
     type = type.lower().strip()
     if type not in ("externo", "interno"):
@@ -566,7 +590,12 @@ def create_project(
     if db.query(Project).filter(Project.code == code).first():
         raise HTTPException(400, "Código de proyecto ya existe")
     p = Project(code=code, name=name, type=type, created_by=current.id)
-    db.add(p); db.commit()
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+
+    db.add(ProjectMember(project_id=p.id, user_id=current.id, role="manager"))
+    db.commit()
 
     (FILES_ROOT / "projects" / p.code / "Información técnica").mkdir(parents=True, exist_ok=True)
     (FILES_ROOT / "projects" / p.code / "Expediente IMT").mkdir(parents=True, exist_ok=True)
@@ -600,18 +629,32 @@ def create_project(
     except Exception as e:
         print("WARN auto-seed:", e)
 
+    return {"id": p.id, "code": p.code, "name": p.name, "type": p.type}
+
 
 @app.get("/projects")
 def list_projects(db: Session = Depends(get_db), current: User = Depends(get_current_user)):
     if is_admin(current):
-        rows = db.query(Project).order_by(Project.created_at.desc()).all()
+        rows = (
+            db.query(Project, ProjectMember.role)
+            .outerjoin(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == current.id))
+            .order_by(Project.created_at.desc())
+            .all()
+        )
     else:
-        rows = (db.query(Project)
-                  .join(ProjectMember, ProjectMember.project_id == Project.id)
-                  .filter(ProjectMember.user_id == current.id)
-                  .order_by(Project.created_at.desc())
-                  .all())
-    return [{"id": p.id, "code": p.code, "name": p.name, "type": p.type} for p in rows]
+        rows = (
+            db.query(Project, ProjectMember.role)
+            .outerjoin(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == current.id))
+            .filter(or_(ProjectMember.user_id == current.id, Project.created_by == current.id))
+            .order_by(Project.created_at.desc())
+            .all()
+        )
+    out = []
+    for p, role in rows:
+        is_owner = p.created_by == current.id
+        my_role = role or ("owner" if is_owner else None)
+        out.append({"id": p.id, "code": p.code, "name": p.name, "type": p.type, "role": my_role, "is_owner": is_owner})
+    return out
 
 @app.post("/projects/{project_id}/stages")
 def add_stage(
@@ -676,11 +719,9 @@ def add_member(
     user_id: int = Form(...),
     role: str = Form("uploader"),
     db: Session = Depends(get_db),
-    current: User = Depends(require_admin),
+    current: User = Depends(get_current_user),
 ):
-    proj = db.get(Project, project_id)
-    if not proj:
-        raise HTTPException(404, "Proyecto no existe")
+    require_owner_or_admin(db, project_id, current)
     exists = db.query(ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
     if exists:
         exists.role = role
@@ -690,7 +731,8 @@ def add_member(
     return {"ok": True}
 
 @app.get("/projects/{project_id}/members")
-def list_members_admin(project_id: int, db: Session = Depends(get_db), current: User = Depends(require_admin)):
+def list_members(project_id: int, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    require_owner_or_admin(db, project_id, current)
     rows = (
         db.query(ProjectMember, User)
         .join(User, User.id == ProjectMember.user_id)
@@ -703,7 +745,8 @@ def list_members_admin(project_id: int, db: Session = Depends(get_db), current: 
     ]
 
 @app.delete("/projects/{project_id}/members")
-def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depends(get_db), current: User = Depends(require_admin)):
+def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    require_owner_or_admin(db, project_id, current)
     pm = db.query(ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
     if not pm:
         raise HTTPException(404, "Miembro no encontrado en el proyecto")
@@ -712,13 +755,60 @@ def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depe
     return {"ok": True}
 
 @app.get("/users")
-def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), current: User = Depends(require_admin)):
+@app.get("/users")
+def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), current: User = Depends(get_current_user)):
     qry = db.query(User)
     if q:
         like = f"%{q.strip()}%"
         qry = qry.filter(User.username.ilike(like))
     rows = qry.order_by(User.created_at.desc()).limit(50).all()
-    return [{"id": u.id, "username": u.username, "role": u.role, "created_at": u.created_at} for u in rows]
+    return [{"id": u.id, "username": u.username, "role": u.role, "created_at": u.created_at, "can_create_projects": u.can_create_projects} for u in rows]
+
+@app.post("/users", status_code=201)
+def create_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("colaborador"),
+    can_create: bool = Form(False),
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(400, "Usuario ya existe")
+    u = User(username=username.strip(), password_hash=bcrypt.hash(password), role=role, can_create_projects=can_create)
+    db.add(u); db.commit()
+    return {"id": u.id, "username": u.username, "role": u.role, "can_create_projects": u.can_create_projects}
+
+@app.patch("/users/{user_id}")
+def update_user(
+    user_id: int,
+    role: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    can_create: Optional[bool] = Form(None),
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(404, "Usuario no existe")
+    if role:
+        u.role = role
+    if password:
+        u.password_hash = bcrypt.hash(password)
+    if can_create is not None:
+        u.can_create_projects = can_create
+    db.commit()
+    return {"ok": True}
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db), current: User = Depends(require_admin)):
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(404, "Usuario no existe")
+    if u.id == current.id:
+        raise HTTPException(400, "No puedes eliminarte a ti mismo")
+    db.delete(u); db.commit()
+    return {"ok": True}
 
 @app.get("/projects/{project_id}/categories")
 def categories_tree(project_id: int, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
@@ -843,6 +933,7 @@ def list_files(
 
     items = []
     for fr, st, u in qset.all():
+        rel_path = Path(fr.path).relative_to(FILES_ROOT / "projects" / proj.code)
         items.append({
             "id": fr.id,
             "filename": fr.filename,
@@ -852,6 +943,7 @@ def list_files(
             "uploaded_at": fr.uploaded_at,
             "uploaded_by": (u.username if u else None),
             "download_url": f"http://localhost:8000/download/{fr.id}",
+            "path": str(rel_path),
         })
     return {"items": items, "limit": limit, "offset": offset}
 
