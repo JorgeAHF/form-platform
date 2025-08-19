@@ -101,7 +101,9 @@ export default function RegistrationAdmin({ token }) {
     async function handleUpdateUser(u) {
         setUserBusy(u.id);
         try {
-            await updateUser(u.id, { role: u.role, can_create: u.can_create_projects }, token);
+            const payload = { role: u.role, can_create: u.can_create_projects };
+            if (u.new_password) payload.password = u.new_password;
+            await updateUser(u.id, payload, token);
             toast.success("Actualizado");
             await loadUsers();
         } catch (e) {
@@ -233,6 +235,7 @@ export default function RegistrationAdmin({ token }) {
                                 <th>Usuario</th>
                                 <th>Rol</th>
                                 <th>Puede crear</th>
+                                <th>Contraseña</th>
                                 <th className="text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -248,6 +251,15 @@ export default function RegistrationAdmin({ token }) {
                                     </td>
                                     <td>
                                         <input type="checkbox" checked={u.can_create_projects} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, can_create_projects:e.target.checked}:x))} />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="password"
+                                            value={u.new_password || ""}
+                                            onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, new_password:e.target.value}:x))}
+                                            placeholder="Nueva"
+                                            className="border rounded px-2 py-1"
+                                        />
                                     </td>
                                     <td className="text-right space-x-2">
                                         <button onClick={()=>handleUpdateUser(u)} disabled={userBusy===u.id} className="rounded-md border px-2 py-1 text-xs hover:bg-slate-100">Guardar</button>
