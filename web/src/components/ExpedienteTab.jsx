@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import { RefreshCcw } from "lucide-react";
 import {
     getProjects,
     getStages,
@@ -134,50 +136,15 @@ export default function ExpedienteTab({ token }) {
         }
     }
 
-    async function onDelete(f) {
-        if (!window.confirm(`Eliminar "${f.filename}"? Esto no se puede deshacer.`)) return;
-        try {
-            setBusy(true);
-            await deleteFile(f.id, token);
-            toast.success("Archivo eliminado");
-            await refreshSnapshot();
-        } catch (e) {
-            toast.error(e.message);
-        } finally {
-            setBusy(false);
-        }
-    }
-
     async function onDeleteFile(id) {
         if (!window.confirm("¿Eliminar este archivo?")) return;
         try {
             await deleteFile(id, token);
-            await refreshSnap();
+            await refreshSnapshot();
         } catch (err) {
             console.error(err);
             alert(err.message || "Error eliminando archivo");
         }
-    }
-
-    function groupDeliverables(list = []) {
-        const req = [];
-        const opc = [];
-        const extrasContrato = [];
-        for (const d of list) {
-            if (d.optional_group === "documentos_contrato_adicionales") {
-                extrasContrato.push(d);
-            } else if (d.required) {
-                req.push(d);
-            } else {
-                opc.push(d);
-            }
-        }
-        // ordena por order ya viene ordenado desde backend, por si acaso:
-        return {
-            requeridos: req,
-            opcionales: opc,
-            adicionalesContrato: extrasContrato,
-        };
     }
 
     // ---------- render ----------
@@ -345,92 +312,6 @@ export default function ExpedienteTab({ token }) {
                                         </tbody>
                                     </table>
                                 </div>
-                                {openBlocks[blockKey] && (
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full text-sm">
-                                            <thead>
-                                                <tr className="text-left text-slate-600">
-                                                    <th className="py-2 pr-3">Entregable</th>
-                                                    <th className="py-2 pr-3">Estado</th>
-                                                    <th className="py-2 pr-3">Archivos</th>
-                                                    <th className="py-2">Acciones</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {items.map(d => {
-                                                    const hasActive = d.multi ? d.files.length > 0 : d.files.some(f => f.is_active);
-                                                    const accept = acceptFromAllowed(d.allowed_ext);
-                                                    return (
-                                                        <tr key={d.key} className="border-t">
-                                                            <td className="py-3 pr-3 align-top">
-                                                                <div className="font-medium text-slate-900">{d.title}</div>
-                                                                <div className="mt-1 text-xs text-slate-600">
-                                                                    {d.required ? chip("Obligatorio") : chip("Opcional")}
-                                                                    {d.multi ? chip("Múltiple") : chip("Único")}
-                                                                    {Array.isArray(d.allowed_ext) && d.allowed_ext.length > 0 && chip(`Ext: ${d.allowed_ext.join(", ")}`)}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-3 pr-3 align-top">
-                                                                <span className={"inline-flex rounded-full px-2 py-0.5 text-xs border " +
-                                                                    (hasActive ? "bg-green-100 text-green-800 border-green-200" : "bg-amber-100 text-amber-800 border-amber-200")}>
-                                                                    {hasActive ? "Completo" : "Faltante"}
-                                                                </span>
-                                                            </td>
-                                                            <td className="py-3 pr-3 align-top">
-                                                                {d.files.length === 0 ? (
-                                                                    <span className="text-slate-500">—</span>
-                                                                ) : (
-                                                                    <ul className="space-y-1">
-                                                                        {d.files.map(f => (
-                                                                            <li key={f.id} className="flex items-center gap-2">
-                                                                                <span className="text-slate-700">v{f.version} · {f.filename} · {bytes(f.size_bytes)}</span>
-                                                                                {f.is_active ? chip("Activo") : chip("Histórico")}
-                                                                                <button type="button" title="Ver"
-                                                                                    onClick={() => previewFileById(f.id, token)}
-                                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50 inline-flex items-center gap-1">
-                                                                                    <Eye size={14} /> Ver
-                                                                                </button>
-                                                                                <button type="button" title="Descargar"
-                                                                                    onClick={() => downloadFileById(f.id, f.filename, token)}
-                                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50 inline-flex items-center gap-1">
-                                                                                    <Download size={14} /> Descargar
-                                                                                </button>
-                                                                                <button type="button" title="Eliminar"
-                                                                                    onClick={() => onDelete(f)}
-                                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-red-50 text-red-700 inline-flex items-center gap-1">
-                                                                                    <Trash2 size={14} /> Eliminar
-                                                                                </button>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                )}
-                                                            </td>
-                                                            <td className="py-3 align-top">
-                                                                <div className="flex items-center gap-2">
-                                                                    <input
-                                                                        ref={el => (fileInputs.current[d.key] = el)}
-                                                                        type="file"
-                                                                        accept={accept}
-                                                                        className="hidden"
-                                                                        onChange={e => handleFileSelected(d, e)}
-                                                                    />
-                                                                    <button type="button"
-                                                                        onClick={() => triggerSelect(d.key)}
-                                                                        disabled={busy}
-                                                                        className="inline-flex items-center gap-2 rounded-md bg-slate-900 text-white px-3 py-1.5 hover:bg-slate-800 disabled:opacity-50">
-                                                                        <UploadIcon size={16} />
-                                                                        {busy ? "Subiendo..." : hasActive && !d.multi ? "Reemplazar" : "Subir"}
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
                                 {/* barra global de subida */}
                                 {busy && (
                                     <div className="mt-3 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
