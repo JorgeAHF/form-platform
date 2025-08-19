@@ -155,6 +155,65 @@ export default function ProjectAdmin({ token, role, canCreate }) {
 
     return (
         <div className="space-y-6">
+            {(role === "admin" || canCreate) && (
+                <>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                            <label className="text-sm font-medium">Tipo</label>
+                            <select
+                                value={type}
+                                onChange={(e) => onTypeChange(e.target.value)}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                            >
+                                <option value="externo">Externo (EE#### SIGLAS)</option>
+                                <option value="interno">Interno (EI#### SIGLAS)</option>
+                            </select>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Prefijo sugerido: <b>{suggestPrefix(type)}</b>
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-medium">Código</label>
+                            <input
+                                value={code}
+                                onChange={(e) => setCode(e.target.value)}
+                                placeholder={`${suggestPrefix(type)}#### SIGLAS`}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-medium">Nombre</label>
+                            <input
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Nombre descriptivo"
+                                className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <button
+                            onClick={createProject}
+                            disabled={busy}
+                            className="rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                            {busy ? "Creando..." : "Crear proyecto"}
+                        </button>
+                    </div>
+
+                    <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">
+                        <p className="font-medium mb-1">Formato recomendado</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>Externos: <b>EE#### SIGLAS</b> (ej. EE2225 JAHF)</li>
+                            <li>Internos: <b>EI#### SIGLAS</b> (ej. EI0525 JAHF)</li>
+                        </ul>
+                    </div>
+                </>
+            )}
+
             <div className="space-y-4">
                 {loadingProjects ? (
                     <p className="text-sm text-slate-500">Cargando proyectos...</p>
@@ -220,65 +279,6 @@ export default function ProjectAdmin({ token, role, canCreate }) {
                     </>
                 )}
             </div>
-
-            {(role === "admin" || canCreate) && (
-                <>
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <div>
-                            <label className="text-sm font-medium">Tipo</label>
-                            <select
-                                value={type}
-                                onChange={(e) => onTypeChange(e.target.value)}
-                                className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
-                            >
-                                <option value="externo">Externo (EE#### SIGLAS)</option>
-                                <option value="interno">Interno (EI#### SIGLAS)</option>
-                            </select>
-                            <p className="text-xs text-slate-500 mt-1">
-                                Prefijo sugerido: <b>{suggestPrefix(type)}</b>
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="text-sm font-medium">Código</label>
-                            <input
-                                value={code}
-                                onChange={(e) => setCode(e.target.value)}
-                                placeholder={`${suggestPrefix(type)}#### SIGLAS`}
-                                className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="text-sm font-medium">Nombre</label>
-                            <input
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="Nombre descriptivo"
-                                className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <button
-                            onClick={createProject}
-                            disabled={busy}
-                            className="rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-50"
-                        >
-                            {busy ? "Creando..." : "Crear proyecto"}
-                        </button>
-                    </div>
-
-                    <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">
-                        <p className="font-medium mb-1">Formato recomendado</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>Externos: <b>EE#### SIGLAS</b> (ej. EE2225 JAHF)</li>
-                            <li>Internos: <b>EI#### SIGLAS</b> (ej. EI0525 JAHF)</li>
-                        </ul>
-                    </div>
-                </>
-            )}
 
             {showMembers && currentProj && (
                 <div className="mt-8 space-y-4">

@@ -18,7 +18,7 @@ export default function App() {
     const [reqMsg, setReqMsg] = useState("");
     const [wantCreate, setWantCreate] = useState(false);
 
-    const [tab, setTab] = useState("expTec"); // expTec | expediente | proyectos | solicitudes
+    const [tab, setTab] = useState("expTec"); // expediente | expTec | proyectos | solicitudes
 
     useEffect(() => { if (token) localStorage.setItem("apiToken", token); }, [token]);
 
@@ -120,8 +120,8 @@ export default function App() {
                 ) : (
                     <>
                         <div className="flex flex-wrap gap-2 mb-4">
-                            <NavBtn active={tab === "expTec"} onClick={() => setTab("expTec")} icon={Upload}>Expediente Técnico</NavBtn>
                             <NavBtn active={tab === "expediente"} onClick={() => setTab("expediente")}>Expediente IMT</NavBtn>
+                            <NavBtn active={tab === "expTec"} onClick={() => setTab("expTec")} icon={Upload}>Expediente Técnico</NavBtn>
                             <NavBtn active={tab === "proyectos"} onClick={() => setTab("proyectos")} icon={Settings2}>Proyectos</NavBtn>
                             {role === "admin" && (
                                 <NavBtn active={tab === "solicitudes"} onClick={() => setTab("solicitudes")} icon={ClipboardList}>Solicitudes</NavBtn>
