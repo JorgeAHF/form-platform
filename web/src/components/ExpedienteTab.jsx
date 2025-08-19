@@ -121,12 +121,14 @@ export default function ExpedienteTab({ token }) {
         try {
             setBusy(true); setProgress(0);
             await uploadExpediente({
-                project_id: projectId,
-                stage_id: stageId,
-                deliverable_key: d.key,
+                projectId,
+                stageId,
+                deliverableKey: d.key,
                 file,
-                reason
-            }, token, p => setProgress(p));
+                reason,
+                token,
+                onProgress: (p) => setProgress(p),
+            });
             toast.success("Archivo subido");
             await refreshSnapshot();
         } catch (err) {
