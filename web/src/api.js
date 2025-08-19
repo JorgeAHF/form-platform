@@ -1,5 +1,5 @@
 // web/src/api.js
-const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // -------------- helpers --------------
 function authHeaders(token) {
@@ -197,7 +197,6 @@ export async function getProgressExpediente(projectId, token) {
 
 export async function downloadFileById(fileId, filename, token, opts = {}) {
     const { view = false } = opts;
-    const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
     const res = await fetch(`${API}/download/${fileId}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
