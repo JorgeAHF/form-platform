@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getProjects, getStages } from "../api"; // ya lo tienes
-import { getExpediente, uploadExpediente, downloadFileById } from "../api";
+import {
+    getProjects,
+    getStages,
+    getExpediente,
+    uploadExpediente,
+    downloadFileById,
+    deleteFile,
+} from "../api";
 
 
 function bytes(n) {
@@ -139,6 +145,17 @@ export default function ExpedienteTab({ token }) {
         }
     }
 
+    async function onDeleteFile(id) {
+        if (!window.confirm("¿Eliminar este archivo?")) return;
+        try {
+            await deleteFile(id, token);
+            await refreshSnap();
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Error eliminando archivo");
+        }
+    }
+
     function groupDeliverables(list = []) {
         const req = [];
         const opc = [];
@@ -235,9 +252,8 @@ export default function ExpedienteTab({ token }) {
                         const items = groupDeliverables(currentStage.deliverables)[blockKey];
                         if (!items.length) return null;
 
-                        return (
-                            <div key={blockKey} className="mt-5">
-                                <h4 className="text-sm font-semibold mb-2">{title}</h4>
+                        const table = (
+                            <>
                                 <div className="overflow-x-auto">
                                     <table className="min-w-full text-sm">
                                         <thead>
@@ -260,7 +276,7 @@ export default function ExpedienteTab({ token }) {
                                                         <td className="py-3 pr-3 align-top">
                                                             <div className="font-medium">{d.title}</div>
                                                             <div className="mt-1">
-                                                                {d.required ? chip("Requerido") : chip("Opcional")}
+                                                                {d.required ? chip("Obligatorio") : chip("Opcional")}
                                                                 {d.multi ? chip("Multiple") : chip("Único")}
                                                                 {d.allowed_ext?.length ? chip(d.allowed_ext.join(" | ").toUpperCase()) : null}
                                                             </div>
@@ -290,11 +306,27 @@ export default function ExpedienteTab({ token }) {
                                                                             {f.is_active ? chip("Activo") : chip("Histórico")}
                                                                             <button
                                                                                 type="button"
+                                                                                onClick={() => downloadFileById(f.id, f.filename, token, { view: true })}
+                                                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                                                title="Ver"
+                                                                            >
+                                                                                Ver
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
                                                                                 onClick={() => downloadFileById(f.id, f.filename, token)}
                                                                                 className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
                                                                                 title="Descargar"
                                                                             >
                                                                                 Descargar
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => onDeleteFile(f.id)}
+                                                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                                                title="Eliminar"
+                                                                            >
+                                                                                Eliminar
                                                                             </button>
                                                                         </li>
                                                                     ))}
@@ -333,6 +365,24 @@ export default function ExpedienteTab({ token }) {
                                         <div className="h-full bg-slate-900 transition-all" style={{ width: `${progress}%` }} />
                                     </div>
                                 )}
+                            </>
+                        );
+
+                        if (blockKey === "adicionalesContrato") {
+                            return (
+                                <details key={blockKey} className="mt-5">
+                                    <summary className="text-sm font-semibold cursor-pointer select-none">
+                                        {title}
+                                    </summary>
+                                    <div className="mt-2">{table}</div>
+                                </details>
+                            );
+                        }
+
+                        return (
+                            <div key={blockKey} className="mt-5">
+                                <h4 className="text-sm font-semibold mb-2">{title}</h4>
+                                {table}
                             </div>
                         );
                     })}

@@ -188,7 +188,8 @@ export async function getProgressExpediente(projectId, token) {
 }
 
 
-export async function downloadFileById(fileId, filename, token) {
+export async function downloadFileById(fileId, filename, token, opts = {}) {
+    const { view = false } = opts;
     const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
     const res = await fetch(`${API}/download/${fileId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -200,11 +201,15 @@ export async function downloadFileById(fileId, filename, token) {
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename || `archivo-${fileId}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    if (view) {
+        window.open(url, "_blank");
+    } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename || `archivo-${fileId}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
     URL.revokeObjectURL(url);
 }
