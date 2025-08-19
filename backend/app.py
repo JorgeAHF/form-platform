@@ -551,7 +551,7 @@ def reject_registration(
     return {"ok": True}
 
 # -------- Proyectos / Etapas / Miembros --------
-@app.post("/projects")
+@app.post("/projects", status_code=201)
 def create_project(
     code: str = Form(...),
     name: str = Form(...),
@@ -566,7 +566,9 @@ def create_project(
     if db.query(Project).filter(Project.code == code).first():
         raise HTTPException(400, "Código de proyecto ya existe")
     p = Project(code=code, name=name, type=type, created_by=current.id)
-    db.add(p); db.commit()
+    db.add(p)
+    db.commit()
+    db.refresh(p)
 
     (FILES_ROOT / "projects" / p.code / "Información técnica").mkdir(parents=True, exist_ok=True)
     (FILES_ROOT / "projects" / p.code / "Expediente IMT").mkdir(parents=True, exist_ok=True)
@@ -599,6 +601,8 @@ def create_project(
 
     except Exception as e:
         print("WARN auto-seed:", e)
+
+    return {"id": p.id, "code": p.code, "name": p.name, "type": p.type}
 
 
 @app.get("/projects")

@@ -15,8 +15,6 @@ export default function ProjectAdmin({ token, onProjectsChanged }) {
 
     function onTypeChange(v) {
         setType(v);
-        // ayuda rápida para el formato del código
-        if (!code) setCode(`${suggestPrefix(v)}#### SIGLAS`);
     }
 
     async function createProject() {
