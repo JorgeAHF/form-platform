@@ -13,7 +13,7 @@ export default function RegistrationAdmin({ token }) {
 
     const [users, setUsers] = useState([]);
     const [userBusy, setUserBusy] = useState(null);
-    const [newUser, setNewUser] = useState({ username: "", password: "", role: "colaborador", can_create: false });
+    const [newUser, setNewUser] = useState({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false });
 
     async function loadRegs() {
         try {
@@ -89,9 +89,9 @@ export default function RegistrationAdmin({ token }) {
     async function handleCreateUser(e) {
         e.preventDefault();
         try {
-            await createUser({ username: newUser.username, password: newUser.password, role: newUser.role, can_create: newUser.can_create }, token);
+            await createUser({ username: newUser.username, password: newUser.password, full_name: newUser.full_name, email: newUser.email, initials: newUser.initials, role: newUser.role, can_create: newUser.can_create }, token);
             toast.success("Usuario creado");
-            setNewUser({ username: "", password: "", role: "colaborador", can_create: false });
+            setNewUser({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false });
             await loadUsers();
         } catch (e) {
             toast.error(e.message);
@@ -162,6 +162,9 @@ export default function RegistrationAdmin({ token }) {
                         <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
                             <th>Fecha</th>
                             <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Correo</th>
+                            <th>Iniciales</th>
                             <th>Solicita crear</th>
                             <th>Estado</th>
                             <th>Nota</th>
@@ -171,12 +174,15 @@ export default function RegistrationAdmin({ token }) {
                     <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
                         {(!rows || rows.length === 0) ? (
                             <tr>
-                                <td colSpan="6" className="px-3 py-6 text-center text-slate-500">Sin solicitudes</td>
+                                <td colSpan="9" className="px-3 py-6 text-center text-slate-500">Sin solicitudes</td>
                             </tr>
                         ) : rows.map((r) => (
                             <tr key={r.id}>
                                 <td>{new Date(r.created_at).toLocaleString()}</td>
                                 <td>{r.username}</td>
+                                <td>{r.full_name}</td>
+                                <td>{r.email}</td>
+                                <td>{r.initials}</td>
                                 <td>{r.want_create ? "sí" : "no"}</td>
                                 <td>{r.status}</td>
                                 <td className="truncate">{r.note || "-"}</td>
@@ -206,6 +212,9 @@ export default function RegistrationAdmin({ token }) {
                 <form onSubmit={handleCreateUser} className="flex flex-wrap gap-2 mb-4 items-end">
                     <input value={newUser.username} onChange={e=>setNewUser({...newUser, username:e.target.value})} placeholder="Usuario" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
                     <input type="password" value={newUser.password} onChange={e=>setNewUser({...newUser, password:e.target.value})} placeholder="Contraseña" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
+                    <input value={newUser.full_name} onChange={e=>setNewUser({...newUser, full_name:e.target.value})} placeholder="Nombre completo" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
+                    <input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser, email:e.target.value})} placeholder="Correo" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
+                    <input value={newUser.initials} onChange={e=>setNewUser({...newUser, initials:e.target.value.toUpperCase()})} placeholder="Iniciales" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
                     <select value={newUser.role} onChange={e=>setNewUser({...newUser, role:e.target.value})} className="rounded-lg border px-3 py-2">
                         <option value="colaborador">colaborador</option>
                         <option value="admin">admin</option>
