@@ -843,6 +843,7 @@ def list_files(
 
     items = []
     for fr, st, u in qset.all():
+        rel_path = Path(fr.path).relative_to(FILES_ROOT / "projects" / proj.code)
         items.append({
             "id": fr.id,
             "filename": fr.filename,
@@ -852,6 +853,7 @@ def list_files(
             "uploaded_at": fr.uploaded_at,
             "uploaded_by": (u.username if u else None),
             "download_url": f"http://localhost:8000/download/{fr.id}",
+            "path": str(rel_path),
         })
     return {"items": items, "limit": limit, "offset": offset}
 

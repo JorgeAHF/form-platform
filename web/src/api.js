@@ -78,16 +78,12 @@ export async function getStages(projectId, token) {
 }
 
 export async function getCategoryTree(projectId, token) {
-    const r = await fetch(`${API}/projects/${projectId}/categories/tree`, {
+    const r = await fetch(`${API}/projects/${projectId}/categories`, {
         headers: { Authorization: `Bearer ${token}` },
     });
-    if (r.status === 404) {
-        // Si aún no existe el endpoint en backend, no revientes el flujo.
-        return { sections: [] };
-    }
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Error leyendo categorías");
-    return j; // { sections: [...] }
+    return j.tree || j; // {sections:[...]} o {tree:{...}}
 }
 
 // -------------- subidas --------------
@@ -106,7 +102,7 @@ export function uploadByCategory(projectId, sectionKey, categoryKey, subcategory
     fd.append("category_key", categoryKey);
     if (subcategoryKey) fd.append("subcategory_key", subcategoryKey);
     fd.append("file", file);
-    return xhrUpload(`${API}/upload/by-category`, fd, token, onProgress);
+    return xhrUpload(`${API}/upload`, fd, token, onProgress);
 }
 
 // -------------- archivos --------------
