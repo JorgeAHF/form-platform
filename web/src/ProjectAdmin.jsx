@@ -210,13 +210,6 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
                         </button>
                     </div>
 
-                    <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">
-                        <p className="font-medium mb-1">El código se genera automáticamente</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>Externos: <b>EE#### {initials}</b></li>
-                            <li>Internos: <b>EI#### {initials}</b></li>
-                        </ul>
-                    </div>
                 </>
             )}
 
