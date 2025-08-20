@@ -237,7 +237,7 @@ export default function RegistrationAdmin({ token }) {
                     <button className="rounded-lg bg-slate-900 text-white px-3 py-2 hover:bg-slate-800">Agregar</button>
                 </form>
 
-                <div className="rounded-xl border overflow-hidden">
+                <div className="rounded-xl border overflow-x-auto">
                     <table className="w-full border-collapse text-sm">
                         <thead className="bg-slate-100">
                             <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
@@ -256,18 +256,18 @@ export default function RegistrationAdmin({ token }) {
                                 <tr key={u.id}>
                                     {editId === u.id ? (
                                         <>
-                                            <td><input value={u.username} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, username:e.target.value}:x))} className="border rounded px-2 py-1" /></td>
-                                            <td><input value={u.full_name} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, full_name:e.target.value}:x))} className="border rounded px-2 py-1" /></td>
-                                            <td><input value={u.email} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, email:e.target.value}:x))} className="border rounded px-2 py-1" /></td>
-                                            <td><input value={u.initials} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, initials:e.target.value.toUpperCase()}:x))} className="border rounded px-2 py-1" /></td>
+                                            <td><input value={u.username} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, username:e.target.value}:x))} className="border rounded px-2 py-1 w-32" /></td>
+                                            <td><input value={u.full_name} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, full_name:e.target.value}:x))} className="border rounded px-2 py-1 w-40" /></td>
+                                            <td><input value={u.email} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, email:e.target.value}:x))} className="border rounded px-2 py-1 w-48" /></td>
+                                            <td><input value={u.initials} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, initials:e.target.value.toUpperCase()}:x))} className="border rounded px-2 py-1 w-20" /></td>
                                             <td>
-                                                <select value={u.role} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, role:e.target.value}:x))} className="border rounded px-2 py-1">
+                                                <select value={u.role} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, role:e.target.value}:x))} className="border rounded px-2 py-1 w-32">
                                                     <option value="colaborador">colaborador</option>
                                                     <option value="admin">admin</option>
                                                 </select>
                                             </td>
                                             <td><input type="checkbox" checked={u.can_create_projects} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, can_create_projects:e.target.checked}:x))} /></td>
-                                            <td><input type="password" value={u.new_password || ""} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, new_password:e.target.value}:x))} placeholder="Nueva" className="border rounded px-2 py-1" /></td>
+                                            <td><input type="password" value={u.new_password || ""} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, new_password:e.target.value}:x))} placeholder="Nueva" className="border rounded px-2 py-1 w-32" /></td>
                                             <td className="text-right space-x-2">
                                                 <button onClick={()=>handleUpdateUser(u)} disabled={userBusy===u.id} className="rounded-md border px-2 py-1 text-xs hover:bg-slate-100">Guardar</button>
                                                 <button onClick={()=>{setEditId(null); loadUsers();}} className="rounded-md border px-2 py-1 text-xs hover:bg-slate-100">Cancelar</button>
