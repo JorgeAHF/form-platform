@@ -95,7 +95,15 @@ export function uploadExpedienteLegacy(projectId, stageId, file, token, _subfold
     return xhrUpload(`${API}/upload`, fd, token, onProgress);
 }
 
-export function uploadByCategory(projectId, sectionKey, categoryKey, subcategoryKey, file, token, onProgress) {
+export function uploadByCategory(
+    projectId,
+    sectionKey,
+    categoryKey,
+    subcategoryKey,
+    file,
+    token,
+    onProgress
+) {
     const fd = new FormData();
     fd.append("project_id", projectId);
     fd.append("section_key", sectionKey);
