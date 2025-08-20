@@ -246,17 +246,9 @@ export async function getProgressExpediente(projectId, token) {
 export async function downloadFileById(fileId, filename, token, opts = {}) {
     const { view = false } = opts;
     const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const res = await fetch(`${API}/download/${fileId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-        let err = "Error al descargar";
-        try { const j = await res.json(); err = j.detail || err; } catch { }
-        throw new Error(err);
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    let url = `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}`;
     if (view) {
+        url += "&inline=1";
         window.open(url, "_blank");
     } else {
         const a = document.createElement("a");
@@ -266,7 +258,6 @@ export async function downloadFileById(fileId, filename, token, opts = {}) {
         a.click();
         a.remove();
     }
-    URL.revokeObjectURL(url);
 }
 
 // -------------- usuarios y miembros --------------

@@ -144,11 +144,11 @@ export default function App() {
 
                         {tab === "expTec" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                                <ExpTecTab token={token} />
+                                <ExpTecTab token={token} readOnly={role === "auditor"} />
                             </div>
                         ) : tab === "expediente" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                                <ExpedienteTab token={token} />
+                                <ExpedienteTab token={token} readOnly={role === "auditor"} />
                             </div>
                         ) : tab === "proyectos" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
