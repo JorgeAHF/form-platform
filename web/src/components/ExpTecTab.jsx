@@ -22,6 +22,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const [projectId, setProjectId] = useState("");
     const [tree, setTree] = useState({ sections: [] });
     const [filesMap, setFilesMap] = useState({});
+    const [subdirs, setSubdirs] = useState({});
     const fileInputs = useRef({});
     const dirInputs = useRef({});
 

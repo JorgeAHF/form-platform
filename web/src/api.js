@@ -109,6 +109,7 @@ export function uploadByCategory(
     fd.append("section_key", sectionKey);
     fd.append("category_key", categoryKey);
     if (subcategoryKey) fd.append("subcategory_key", subcategoryKey);
+    if (subpath) fd.append("subpath", subpath);
     fd.append("file", file);
     return xhrUpload(`${API}/upload`, fd, token, onProgress);
 }
