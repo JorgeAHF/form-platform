@@ -102,6 +102,7 @@ export function uploadByCategory(
     subcategoryKey,
     file,
     token,
+    subpath,
     onProgress
 ) {
     const fd = new FormData();

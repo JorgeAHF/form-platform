@@ -338,6 +338,7 @@ def resolve_folder_path(
     section_key: str,
     category_key: str,
     subcategory_key: Optional[str] = None,
+    subpath: Optional[str] = None,
 ) -> Path:
     sch = get_project_schema(proj.type)
     section = next((s for s in sch["sections"] if s["key"] == section_key), None)
@@ -353,13 +354,12 @@ def resolve_folder_path(
         if not sub:
             raise HTTPException(400, "Subcategoría inválida")
         parts.append(sub["folder"])
+    base = FILES_ROOT / "projects" / Path("/".join(parts))
     if subpath:
-        for part in Path(subpath).parts:
-            cleaned = safe_folder(part)
-            if cleaned:
-                parts.append(cleaned)
-    parts.append(datetime.utcnow().strftime("%Y-%m-%d"))
-    return FILES_ROOT / "projects" / Path("/".join(parts))
+        safe_parts = [safe_folder(p) for p in Path(subpath).parts if p not in ("..", "")]
+        if safe_parts:
+            base = base.joinpath(*safe_parts)
+    return base / datetime.utcnow().strftime("%Y-%m-%d")
 
 def safe_folder(name: str) -> str:
     return re.sub(r"[^0-9A-Za-zÁÉÍÓÚáéíóúÑñüÜ \-_.()]", "", (name or "").strip())
@@ -1206,6 +1206,7 @@ def upload_file(
             section_key.strip(),
             category_key.strip(),
             subcategory_key.strip() if subcategory_key else None,
+            subpath.strip() if subpath else None,
         )
         stage_fk = None
     else:
