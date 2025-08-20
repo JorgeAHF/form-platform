@@ -226,9 +226,12 @@ export default function ExpTecTab({ token, readOnly = false }) {
                                             <td className="py-2 pr-3">
                                                 {!readOnly && (
                                                     <>
+                                                        <label className="mb-1 block text-xs text-slate-600">
+                                                            Subcarpeta (opcional)
+                                                        </label>
                                                         <input
                                                             type="text"
-                                                            placeholder="Subcarpeta"
+                                                            placeholder="ej: planos/2024"
                                                             value={subdirs[r.mapKey] || ""}
                                                             onChange={(e) =>
                                                                 setSubdirs({ ...subdirs, [r.mapKey]: e.target.value })

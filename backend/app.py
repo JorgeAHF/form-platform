@@ -1227,7 +1227,9 @@ def upload_file(
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     ext = Path(file.filename).suffix.lower().lstrip(".")
-    if ext not in ALLOWED_EXT:
+    # Para expediente técnico (sin stage_id) se permite cualquier extensión.
+    # Solo validamos contra ALLOWED_EXT cuando se sube a una etapa del expediente IMT.
+    if stage_fk and ALLOWED_EXT and ext not in ALLOWED_EXT:
         raise HTTPException(415, f"Extensión no permitida: .{ext}")
 
     dest_path = dest_dir / file.filename
