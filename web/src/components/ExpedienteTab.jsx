@@ -7,7 +7,7 @@ import {
     getExpediente,
     uploadExpediente,
     downloadFileById,
-    deleteFile,
+    requestDeleteFile,
 } from "../api";
 
 
@@ -139,13 +139,15 @@ export default function ExpedienteTab({ token }) {
     }
 
     async function onDeleteFile(id) {
-        if (!window.confirm("¿Eliminar este archivo?")) return;
+        const reason = window.prompt("Motivo para eliminar este archivo:");
+        if (!reason || !reason.trim()) return;
         try {
-            await deleteFile(id, token);
+            await requestDeleteFile(id, reason, token);
+            toast.success("Solicitud enviada");
             await refreshSnapshot();
         } catch (err) {
             console.error(err);
-            alert(err.message || "Error eliminando archivo");
+            alert(err.message || "Error solicitando eliminación");
         }
     }
 
@@ -259,6 +261,9 @@ export default function ExpedienteTab({ token }) {
                                                                             <span className="text-slate-700">
                                                                                 v{f.version} · {f.filename} · {bytes(f.size_bytes)}
                                                                             </span>
+                                                                            {f.pending_delete && (
+                                                                                <span className="text-xs text-red-600">(pendiente)</span>
+                                                                            )}
                                                                             {f.is_active ? chip("Activo") : chip("Histórico")}
                                                                             <button
                                                                                 type="button"
@@ -276,14 +281,20 @@ export default function ExpedienteTab({ token }) {
                                                                             >
                                                                                 Descargar
                                                                             </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => onDeleteFile(f.id)}
-                                                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                                                                title="Eliminar"
-                                                                            >
-                                                                                Eliminar
-                                                                            </button>
+                                                                            {f.pending_delete ? (
+                                                                                <span className="rounded-md border px-2 py-1 text-xs text-slate-500" title="Pendiente de eliminación">
+                                                                                    Pendiente
+                                                                                </span>
+                                                                            ) : (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => onDeleteFile(f.id)}
+                                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                                                    title="Eliminar"
+                                                                                >
+                                                                                    Eliminar
+                                                                                </button>
+                                                                            )}
                                                                         </li>
                                                                     ))}
                                                                 </ul>
