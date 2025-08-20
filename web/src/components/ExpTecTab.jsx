@@ -95,6 +95,7 @@ export default function ExpTecTab({ token }) {
         try {
             await requestDeleteFile(id, reason, token);
             alert("Solicitud enviada");
+            await loadFiles(projectId);
         } catch (err) {
             console.error(err);
             alert(err.message || "Error solicitando eliminación");
@@ -182,6 +183,9 @@ export default function ExpTecTab({ token }) {
                                                             <span className="text-slate-700 truncate">
                                                                 {f.filename} · {bytes(f.size_bytes)}
                                                             </span>
+                                                            {f.pending_delete && (
+                                                                <span className="text-xs text-red-600">(pendiente)</span>
+                                                            )}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => downloadFileById(f.id, f.filename, token, { view: true })}
@@ -196,13 +200,17 @@ export default function ExpTecTab({ token }) {
                                                             >
                                                                 Descargar
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => onDelete(f.id)}
-                                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                                            >
-                                                                Eliminar
-                                                            </button>
+                                                            {f.pending_delete ? (
+                                                                <span className="rounded-md border px-2 py-1 text-xs text-slate-500">Pendiente</span>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => onDelete(f.id)}
+                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                                >
+                                                                    Eliminar
+                                                                </button>
+                                                            )}
                                                         </li>
                                                     ))}
                                                 </ul>

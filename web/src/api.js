@@ -153,8 +153,28 @@ export async function approveDeleteRequest(reqId, token) {
         method: "POST",
         headers: authHeaders(token),
     });
-    const j = await r.json();
+    let j = {};
+    try {
+        j = await r.json();
+    } catch {
+        /* sin cuerpo */
+    }
     if (!r.ok) throw new Error(j.detail || "Error aprobando solicitud");
+    return j;
+}
+
+export async function rejectDeleteRequest(reqId, token) {
+    const r = await fetch(`${API}/file-delete-requests/${reqId}/reject`, {
+        method: "POST",
+        headers: authHeaders(token),
+    });
+    let j = {};
+    try {
+        j = await r.json();
+    } catch {
+        /* sin cuerpo */
+    }
+    if (!r.ok) throw new Error(j.detail || "Error rechazando solicitud");
     return j;
 }
 
