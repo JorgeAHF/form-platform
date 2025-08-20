@@ -25,6 +25,9 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const [fileTree, setFileTree] = useState({});
     const [openNodes, setOpenNodes] = useState({});
     const [activePath, setActivePath] = useState("");
+    const [query, setQuery] = useState("");
+    const [limit, setLimit] = useState(50);
+    const [offset, setOffset] = useState(0);
     const fileInput = useRef(null);
     const dirInput = useRef(null);
     const nodeMap = useRef({});
@@ -49,12 +52,16 @@ export default function ExpTecTab({ token, readOnly = false }) {
             try {
                 const t = await getCategoryTree(projectId, token);
                 setSchema(t);
-                await loadFiles(projectId, t);
             } catch (err) {
                 console.error(err);
             }
         })();
     }, [projectId, token]);
+
+    useEffect(() => {
+        if (!projectId) return;
+        loadFiles(projectId, schema);
+    }, [projectId, token, query, limit, offset, schema]);
 
     function buildBaseTree(sch) {
         const root = {};
@@ -99,7 +106,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
 
     async function loadFiles(pid, currSchema = schema) {
         try {
-            const items = await listFiles(pid, {}, token);
+            const items = await listFiles(pid, { q: query, limit, offset }, token);
             const base = buildBaseTree(currSchema);
             for (const f of items) {
                 if (f.stage) continue;
@@ -157,6 +164,18 @@ export default function ExpTecTab({ token, readOnly = false }) {
         }
     }
 
+    function highlight(text) {
+        if (!query) return text;
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return text;
+        return (
+            <>
+                {text.slice(0, idx)}
+                <mark>{text.slice(idx, idx + query.length)}</mark>
+                {text.slice(idx + query.length)}
+            </>
+        );
+    }
 
     function pickFiles() {
         fileInput.current?.click();
@@ -267,7 +286,17 @@ export default function ExpTecTab({ token, readOnly = false }) {
     function renderNode(node) {
         const dirs = Object.values(node.children || {});
         const files = node.files || [];
-        const hasChildren = dirs.length > 0 || files.length > 0;
+        const children = dirs.map((d) => renderNode(d)).filter(Boolean);
+        const matchedFiles = query
+            ? files.filter((f) =>
+                  f.filename.toLowerCase().includes(query.toLowerCase())
+              )
+            : files;
+        const nameMatches = query
+            ? node.name.toLowerCase().includes(query.toLowerCase())
+            : false;
+        const hasChildren = children.length > 0 || matchedFiles.length > 0;
+        if (query && !hasChildren && !nameMatches) return null;
         const isOpen = openNodes[node.pathKey];
         return (
             <li key={node.pathKey} className="ml-2">
@@ -291,16 +320,16 @@ export default function ExpTecTab({ token, readOnly = false }) {
                         }`}
                         onClick={() => handleSelectNode(node.pathKey)}
                     >
-                        {node.name}
+                        {highlight(node.name)}
                     </span>
                 </div>
                 {isOpen && (
                     <ul className="ml-4 space-y-1">
-                        {dirs.map((d) => renderNode(d))}
-                        {files.map((f) => (
+                        {children}
+                        {matchedFiles.map((f) => (
                             <li key={f.id} className="flex items-center gap-2">
                                 <span className="text-slate-700 truncate">
-                                    {f.filename} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
+                                    {highlight(f.filename)} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
                                 </span>
                                 {f.pending_delete && (
                                     <span className="text-xs text-red-600">(pendiente)</span>
@@ -392,6 +421,36 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     ))}
                 </select>
             </div>
+            <div>
+                <label className="text-sm font-medium">Buscar</label>
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar..."
+                    className="mt-1 w-full max-w-sm rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                />
+            </div>
+            <div className="flex gap-2">
+                <div>
+                    <label className="text-sm font-medium">Límite</label>
+                    <input
+                        type="number"
+                        value={limit}
+                        onChange={(e) => setLimit(Number(e.target.value))}
+                        className="mt-1 w-24 rounded-lg border px-2 py-1 outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                </div>
+                <div>
+                    <label className="text-sm font-medium">Offset</label>
+                    <input
+                        type="number"
+                        value={offset}
+                        onChange={(e) => setOffset(Number(e.target.value))}
+                        className="mt-1 w-24 rounded-lg border px-2 py-1 outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                </div>
+            </div>
             <Breadcrumb pathKey={activePath} onSelect={handleSelectNode} />
             {activePath && nodeMap.current[activePath]?.categoryKey && !readOnly && (
                 <div className="flex gap-2">
@@ -442,7 +501,9 @@ export default function ExpTecTab({ token, readOnly = false }) {
                 </div>
             ))}
             <ul className="space-y-1">
-                {Object.values(fileTree).map((sec) => renderNode(sec))}
+                {Object.values(fileTree)
+                    .map((sec) => renderNode(sec))
+                    .filter(Boolean)}
             </ul>
         </div>
     );
