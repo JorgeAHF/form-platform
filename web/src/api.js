@@ -151,6 +151,36 @@ export async function requestDeleteFile(fileId, reason, token) {
     return j;
 }
 
+export async function bulkDownloadFiles(projectId, ids, token) {
+    const r = await fetch(`${API}/projects/${projectId}/files/bulk-download`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+    });
+    if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || "Error descargando archivos");
+    }
+    const blob = await r.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "archivos.zip";
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+export async function bulkRequestDelete(projectId, ids, reason, token) {
+    const r = await fetch(`${API}/projects/${projectId}/files/bulk-delete`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, reason }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "No se pudo solicitar la eliminación");
+    return j;
+}
+
 export async function listDeleteRequests(token) {
     const r = await fetch(`${API}/file-delete-requests`, { headers: authHeaders(token) });
     const j = await r.json();
