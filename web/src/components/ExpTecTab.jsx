@@ -182,7 +182,13 @@ export default function ExpTecTab({ token, readOnly = false }) {
         if (!files.length) return;
         try {
             for (const file of files) {
-                const rel = file.webkitRelativePath.split("/").slice(1);
+                // webkitRelativePath usa "/" en la mayoría de navegadores, pero
+                // algunos entornos (especialmente en Windows) pueden reportar
+                // separadores "\". Para asegurar compatibilidad dividimos por
+                // ambos y removemos la carpeta raíz seleccionada.
+                const rel = (file.webkitRelativePath || "")
+                    .split(/[\\\/]+/)
+                    .slice(1);
                 const inner = rel.slice(0, -1).join("/");
                 const sp = node.subpath ? [node.subpath, inner].filter(Boolean).join("/") : inner;
                 await uploadByCategory(
