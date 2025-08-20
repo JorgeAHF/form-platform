@@ -135,6 +135,18 @@ class RegistrationRequest(Base):
     decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     want_create = Column(Boolean, nullable=False, server_default="false")
 
+
+class FileDeleteRequest(Base):
+    __tablename__ = "file_delete_requests"
+    id = Column(Integer, primary_key=True)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String(16), nullable=False, default="pending")  # pending|approved|rejected
+    requested_at = Column(DateTime, default=func.now())
+    decided_at = Column(DateTime, nullable=True)
+    decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
 # ---- Wire del seeder (import tardío para evitar circular) ----
 _seed_project = None
 try:
@@ -399,6 +411,29 @@ def _expediente_snapshot(project_id: int, db: Session) -> dict:
                 if complete:
                     stage_done += 1
 
+            out_files = []
+            for f in files:
+                has_req = (
+                    db.query(FileDeleteRequest)
+                    .filter_by(file_id=f.id, status="pending")
+                    .first()
+                    is not None
+                )
+                out_files.append(
+                    {
+                        "id": f.id,
+                        "filename": f.filename,
+                        "size_bytes": f.size_bytes,
+                        "content_type": f.content_type,
+                        "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+                        "uploaded_by": f.uploaded_by,
+                        "version": f.version,
+                        "is_active": f.is_active,
+                        "reason": f.reason,
+                        "pending_delete": has_req,
+                    }
+                )
+
             items.append({
                 "deliverable_id": spec.id,
                 "key": spec.key,
@@ -408,17 +443,7 @@ def _expediente_snapshot(project_id: int, db: Session) -> dict:
                 "allowed_ext": list(_parse_allowed_ext_csv(spec.allowed_ext)),
                 "optional_group": spec.optional_group,
                 "status": "completo" if complete else "faltante",
-                "files": [{
-                    "id": f.id,
-                    "filename": f.filename,
-                    "size_bytes": f.size_bytes,
-                    "content_type": f.content_type,
-                    "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
-                    "uploaded_by": f.uploaded_by,
-                    "version": f.version,
-                    "is_active": f.is_active,
-                    "reason": f.reason
-                } for f in files]
+                "files": out_files,
             })
 
         pct = round(100 * stage_done / stage_req, 1) if stage_req > 0 else 0.0
@@ -974,13 +999,11 @@ def download_file(
 def delete_file(
     file_id: int,
     db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
+    current: User = Depends(require_admin),
 ):
     rec = db.get(FileRecord, file_id)
     if not rec:
         raise HTTPException(404, "Archivo no encontrado")
-    # requiere rol de manager en el proyecto (o admin global)
-    ensure_member(db, current, rec.project_id, "manager")
     # eliminar del disco (si existe) y del registro
     try:
         p = Path(rec.path)
@@ -990,6 +1013,91 @@ def delete_file(
         # si falla borrar el archivo, seguimos con el registro para no bloquear
         pass
     db.delete(rec)
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/files/{file_id}/request-delete")
+def request_delete_file(
+    file_id: int,
+    reason: str = Form(...),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    rec = db.get(FileRecord, file_id)
+    if not rec:
+        raise HTTPException(404, "Archivo no encontrado")
+    ensure_member(db, current, rec.project_id, "manager")
+    if db.query(FileDeleteRequest).filter_by(file_id=file_id, status="pending").first():
+        raise HTTPException(400, "Ya existe una solicitud pendiente")
+    req = FileDeleteRequest(file_id=file_id, requested_by=current.id, reason=reason.strip())
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {"ok": True, "request_id": req.id}
+
+
+@app.get("/file-delete-requests")
+def list_delete_requests(
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    q = db.query(FileDeleteRequest).filter(FileDeleteRequest.status == "pending").order_by(FileDeleteRequest.requested_at)
+    items = []
+    for r in q.all():
+        f = db.get(FileRecord, r.file_id)
+        proj = db.get(Project, f.project_id) if f else None
+        u = db.get(User, r.requested_by)
+        items.append(
+            {
+                "id": r.id,
+                "file": {"id": f.id, "filename": f.filename} if f else None,
+                "project": {"id": proj.id, "name": proj.name} if proj else None,
+                "reason": r.reason,
+                "requested_by": u.full_name or u.username if u else None,
+                "requested_at": r.requested_at.isoformat(),
+            }
+        )
+    return {"items": items}
+
+
+@app.post("/file-delete-requests/{req_id}/approve")
+def approve_delete_request(
+    req_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    req = db.get(FileDeleteRequest, req_id)
+    if not req or req.status != "pending":
+        raise HTTPException(404, "Solicitud no encontrada")
+    rec = db.get(FileRecord, req.file_id)
+    if rec:
+        try:
+            p = Path(rec.path)
+            if p.exists():
+                p.unlink()
+        except Exception:
+            pass
+        db.delete(rec)
+    req.status = "approved"
+    req.decided_at = func.now()
+    req.decided_by = current.id
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/file-delete-requests/{req_id}/reject")
+def reject_delete_request(
+    req_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    req = db.get(FileDeleteRequest, req_id)
+    if not req or req.status != "pending":
+        raise HTTPException(404, "Solicitud no encontrada")
+    req.status = "rejected"
+    req.decided_at = func.now()
+    req.decided_by = current.id
     db.commit()
     return {"ok": True}
 
@@ -1009,14 +1117,20 @@ def list_files(
         raise HTTPException(404, "Proyecto no existe")
     ensure_member(db, current, project_id, "viewer")
 
-    from sqlalchemy import or_
+    from sqlalchemy import or_, and_
     from sqlalchemy.orm import aliased
     U = aliased(User)
+    FDR = aliased(FileDeleteRequest)
 
     qset = (
-        db.query(FileRecord, Stage, U)
+        db.query(FileRecord, Stage, U, FDR)
         .join(Stage, Stage.id == FileRecord.stage_id, isouter=True)
         .join(U, U.id == FileRecord.uploaded_by, isouter=True)
+        .join(
+            FDR,
+            and_(FDR.file_id == FileRecord.id, FDR.status == "pending"),
+            isouter=True,
+        )
         .filter(FileRecord.project_id == project_id)
     )
     if stage_id:
@@ -1028,7 +1142,7 @@ def list_files(
     qset = qset.order_by(desc(FileRecord.uploaded_at)).limit(limit).offset(offset)
 
     items = []
-    for fr, st, u in qset.all():
+    for fr, st, u, dr in qset.all():
         rel_path = Path(fr.path).relative_to(FILES_ROOT / "projects" / proj.code)
         items.append({
             "id": fr.id,
@@ -1040,6 +1154,7 @@ def list_files(
             "uploaded_by": (u.username if u else None),
             "download_url": f"http://localhost:8000/download/{fr.id}",
             "path": str(rel_path),
+            "pending_delete": dr is not None,
         })
     return {"items": items, "limit": limit, "offset": offset}
 
