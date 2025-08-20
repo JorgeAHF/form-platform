@@ -103,8 +103,8 @@ export default function ExpTecTab({ token, readOnly = false }) {
                 const parts = f.path.split("/");
                 const section = parts[0];
                 const category = parts[1];
-                const dateIdx = parts.length - 2;
-                let rest = parts.slice(2, dateIdx);
+                // La ruta ya no incluye subcarpeta por fecha; el índice final corresponde al archivo
+                let rest = parts.slice(2, parts.length - 1);
                 let node = base[section]?.children?.[category];
                 if (!node) continue;
                 if (rest.length && node.children[rest[0]] && node.children[rest[0]].subcategoryKey) {
@@ -268,7 +268,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     {(node.files || []).map((f) => (
                         <li key={f.id} className="flex items-center gap-2">
                             <span className="text-slate-700 truncate">
-                                {f.filename} · {bytes(f.size_bytes)}
+                                {f.filename} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
                             </span>
                             {f.pending_delete && (
                                 <span className="text-xs text-red-600">(pendiente)</span>
