@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
     getProjects,
     getCategoryTree,
@@ -22,8 +23,10 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const [projectId, setProjectId] = useState("");
     const [schema, setSchema] = useState({ sections: [] });
     const [fileTree, setFileTree] = useState({});
-    const fileInputs = useRef({});
-    const dirInputs = useRef({});
+    const [openNodes, setOpenNodes] = useState({});
+    const [activePath, setActivePath] = useState("");
+    const fileInput = useRef(null);
+    const dirInput = useRef(null);
     const nodeMap = useRef({});
 
     useEffect(() => {
@@ -138,23 +141,35 @@ export default function ExpTecTab({ token, readOnly = false }) {
             }
             Object.values(base).forEach(register);
             setFileTree(base);
+            setOpenNodes((prev) => {
+                const root = {};
+                Object.values(base).forEach((n) => (root[n.pathKey] = true));
+                return { ...root, ...prev };
+            });
+            setActivePath((prev) =>
+                prev && nodeMap.current[prev]
+                    ? prev
+                    : Object.values(base)[0]?.pathKey || ""
+            );
         } catch (err) {
             console.error(err);
         }
     }
 
-    function pickFiles(key) {
-        fileInputs.current[key]?.click();
+
+    function pickFiles() {
+        fileInput.current?.click();
     }
 
-    function pickDir(key) {
-        dirInputs.current[key]?.click();
+    function pickDir() {
+        dirInput.current?.click();
     }
-    async function onFiles(e, key) {
-        const node = nodeMap.current[key];
+
+    async function onFiles(e) {
+        const node = nodeMap.current[activePath];
         const files = Array.from(e.target.files || []);
         e.target.value = "";
-        if (!files.length) return;
+        if (!files.length || !node) return;
         try {
             for (const file of files) {
                 await uploadByCategory(
@@ -175,22 +190,24 @@ export default function ExpTecTab({ token, readOnly = false }) {
         }
     }
 
-    async function onDir(e, key) {
-        const node = nodeMap.current[key];
+    async function onDir(e) {
+        const node = nodeMap.current[activePath];
         const files = Array.from(e.target.files || []);
         e.target.value = "";
-        if (!files.length) return;
+        if (!files.length || !node) return;
         try {
             for (const file of files) {
                 // webkitRelativePath usa "/" en la mayoría de navegadores, pero
                 // algunos entornos (especialmente en Windows) pueden reportar
-                // separadores "\". Para asegurar compatibilidad dividimos por
+                // separadores "\\". Para asegurar compatibilidad dividimos por
                 // ambos y removemos la carpeta raíz seleccionada.
                 const rel = (file.webkitRelativePath || "")
                     .split(/[\\\/]+/)
                     .slice(1);
                 const inner = rel.slice(0, -1).join("/");
-                const sp = node.subpath ? [node.subpath, inner].filter(Boolean).join("/") : inner;
+                const sp = node.subpath
+                    ? [node.subpath, inner].filter(Boolean).join("/")
+                    : inner;
                 await uploadByCategory(
                     projectId,
                     node.sectionKey,
@@ -222,90 +239,123 @@ export default function ExpTecTab({ token, readOnly = false }) {
         }
     }
 
+    function toggleNode(key) {
+        setOpenNodes((prev) => ({ ...prev, [key]: !prev[key] }));
+    }
+
+    function handleSelectNode(key) {
+        setActivePath(key);
+        setOpenNodes((prev) => {
+            const next = { ...prev };
+            const parts = key.split("/");
+            for (let i = 1; i <= parts.length; i++) {
+                const k = parts.slice(0, i).join("/");
+                next[k] = true;
+            }
+            return next;
+        });
+    }
+
     function renderNode(node) {
         const dirs = Object.values(node.children || {});
+        const files = node.files || [];
+        const hasChildren = dirs.length > 0 || files.length > 0;
+        const isOpen = openNodes[node.pathKey];
         return (
             <li key={node.pathKey} className="ml-2">
-                <div className="flex items-center gap-2">
-                    <span className="font-medium">{node.name}</span>
-                    {node.categoryKey && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => pickFiles(node.pathKey)}
-                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                            >
-                                Subir archivos
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => pickDir(node.pathKey)}
-                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                            >
-                                Subir carpeta
-                            </button>
-                            <input
-                                type="file"
-                                multiple
-                                className="hidden"
-                                ref={(el) => (fileInputs.current[node.pathKey] = el)}
-                                onChange={(e) => onFiles(e, node.pathKey)}
-                            />
-                            <input
-                                type="file"
-                                multiple
-                                webkitdirectory="true"
-                                directory=""
-                                className="hidden"
-                                ref={(el) => (dirInputs.current[node.pathKey] = el)}
-                                onChange={(e) => onDir(e, node.pathKey)}
-                            />
-                        </>
+                <div className="flex items-center gap-1">
+                    {hasChildren && (
+                        <button
+                            type="button"
+                            onClick={() => toggleNode(node.pathKey)}
+                            className="p-0.5"
+                        >
+                            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
                     )}
+                    <span
+                        className={`font-medium cursor-pointer ${
+                            activePath === node.pathKey ? "text-blue-600" : ""
+                        }`}
+                        onClick={() => handleSelectNode(node.pathKey)}
+                    >
+                        {node.name}
+                    </span>
                 </div>
-                <ul className="ml-4 space-y-1">
-                    {dirs.map((d) => renderNode(d))}
-                    {(node.files || []).map((f) => (
-                        <li key={f.id} className="flex items-center gap-2">
-                            <span className="text-slate-700 truncate">
-                                {f.filename} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
-                            </span>
-                            {f.pending_delete && (
-                                <span className="text-xs text-red-600">(pendiente)</span>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => downloadFileById(f.id, f.filename, token, { view: true })}
-                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                            >
-                                Ver
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => downloadFileById(f.id, f.filename, token)}
-                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                            >
-                                Descargar
-                            </button>
-                            {f.pending_delete ? (
-                                <span className="rounded-md border px-2 py-1 text-xs text-slate-500">
-                                    Pendiente
+                {isOpen && (
+                    <ul className="ml-4 space-y-1">
+                        {dirs.map((d) => renderNode(d))}
+                        {files.map((f) => (
+                            <li key={f.id} className="flex items-center gap-2">
+                                <span className="text-slate-700 truncate">
+                                    {f.filename} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
                                 </span>
-                            ) : (
-                                !readOnly && (
-                                    <button
-                                        type="button"
-                                        onClick={() => onDelete(f.id)}
-                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                    >
-                                        Eliminar
-                                    </button>
-                                )
-                            )}
-                        </li>
-                    ))}
-                </ul>
+                                {f.pending_delete && (
+                                    <span className="text-xs text-red-600">(pendiente)</span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        downloadFileById(f.id, f.filename, token, { view: true })
+                                    }
+                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                >
+                                    Ver
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => downloadFileById(f.id, f.filename, token)}
+                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                >
+                                    Descargar
+                                </button>
+                                {f.pending_delete ? (
+                                    <span className="rounded-md border px-2 py-1 text-xs text-slate-500">
+                                        Pendiente
+                                    </span>
+                                ) : (
+                                    !readOnly && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onDelete(f.id)}
+                                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    )
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </li>
+        );
+    }
+
+    function Breadcrumb({ pathKey, onSelect }) {
+        if (!pathKey) return null;
+        const parts = pathKey.split("/");
+        const items = [];
+        for (let i = 1; i <= parts.length; i++) {
+            const key = parts.slice(0, i).join("/");
+            const node = nodeMap.current[key];
+            if (node) items.push({ key, name: node.name });
+        }
+        return (
+            <div className="flex items-center gap-1 text-sm">
+                {items.map((item, idx) => (
+                    <span key={item.key} className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => onSelect(item.key)}
+                            className="text-blue-600 hover:underline"
+                        >
+                            {item.name}
+                        </button>
+                        {idx < items.length - 1 && <span>/</span>}
+                    </span>
+                ))}
+            </div>
         );
     }
 
@@ -326,6 +376,41 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     ))}
                 </select>
             </div>
+            <Breadcrumb pathKey={activePath} onSelect={handleSelectNode} />
+            {activePath && nodeMap.current[activePath]?.categoryKey && !readOnly && (
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={pickFiles}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                    >
+                        Subir archivos
+                    </button>
+                    <button
+                        type="button"
+                        onClick={pickDir}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                    >
+                        Subir carpeta
+                    </button>
+                    <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        ref={fileInput}
+                        onChange={onFiles}
+                    />
+                    <input
+                        type="file"
+                        multiple
+                        webkitdirectory="true"
+                        directory=""
+                        className="hidden"
+                        ref={dirInput}
+                        onChange={onDir}
+                    />
+                </div>
+            )}
             <ul className="space-y-1">
                 {Object.values(fileTree).map((sec) => renderNode(sec))}
             </ul>
