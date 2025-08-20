@@ -359,7 +359,8 @@ def resolve_folder_path(
         safe_parts = [safe_folder(p) for p in Path(subpath).parts if p not in ("..", "")]
         if safe_parts:
             base = base.joinpath(*safe_parts)
-    return base / datetime.utcnow().strftime("%Y-%m-%d")
+    # Fechas de carga se toman de FileRecord.uploaded_at; no se crea subcarpeta por fecha
+    return base
 
 def safe_folder(name: str) -> str:
     return re.sub(r"[^0-9A-Za-zÁÉÍÓÚáéíóúÑñüÜ \-_.()]", "", (name or "").strip())
@@ -386,9 +387,9 @@ def _parse_allowed_ext_csv(csv: str) -> set[str]:
     return {e.strip().lower() for e in (csv or "").split(",") if e.strip()}
 
 def _build_expediente_path(proj_code: str, stage_code: str, deliverable_key: str, version: int) -> Path:
-    date_folder = datetime.utcnow().strftime("%Y-%m-%d")
+    # La fecha de carga se registra en la base de datos, por lo que no se usa subcarpeta de fecha
     return (FILES_ROOT / "projects" / proj_code / "Expediente IMT"
-            / stage_code / deliverable_key / date_folder / f"v{version}")
+            / stage_code / deliverable_key / f"v{version}")
 
 def _next_version_for_deliverable(db: Session, deliverable_id: int) -> int:
     # Siguiente versión secuencial (sirve tanto para single como multi)
@@ -1216,11 +1217,10 @@ def upload_file(
         stage = db.get(Stage, stage_id)
         if not stage or stage.project_id != project_id:
             raise HTTPException(400, "Etapa inválida para el proyecto")
-        date_folder = datetime.utcnow().strftime("%Y-%m-%d")
         base = FILES_ROOT / "projects" / proj.code / "Expediente IMT" / (stage.code or safe_folder(stage.name))
         if exp_subfolder:
             base = base / safe_folder(exp_subfolder)
-        dest_dir = base / date_folder
+        dest_dir = base
         stage_fk = stage_id
 
     dest_dir.mkdir(parents=True, exist_ok=True)

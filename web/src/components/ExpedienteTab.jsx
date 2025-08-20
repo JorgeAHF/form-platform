@@ -259,7 +259,7 @@ export default function ExpedienteTab({ token, readOnly = false }) {
                                                                     {d.files.map((f) => (
                                                                         <li key={f.id} className="flex items-center gap-2">
                                                                             <span className="text-slate-700">
-                                                                                v{f.version} · {f.filename} · {bytes(f.size_bytes)}
+                                                                                v{f.version} · {f.filename} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
                                                                             </span>
                                                                             {f.pending_delete && (
                                                                                 <span className="text-xs text-red-600">(pendiente)</span>
