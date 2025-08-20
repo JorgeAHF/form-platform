@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+    ChevronDown,
+    ChevronRight,
+    File as FileIcon,
+    FileText,
+    FileImage,
+    FileArchive,
+    FileSpreadsheet,
+    FileVideo,
+    FileAudio,
+} from "lucide-react";
 import {
     getProjects,
     getCategoryTree,
@@ -18,6 +28,37 @@ function bytes(n) {
     return n + " B";
 }
 
+function fileIconFor(name) {
+    const ext = name.split(".").pop().toLowerCase();
+    const map = {
+        pdf: FileText,
+        txt: FileText,
+        doc: FileText,
+        docx: FileText,
+        csv: FileSpreadsheet,
+        xls: FileSpreadsheet,
+        xlsx: FileSpreadsheet,
+        png: FileImage,
+        jpg: FileImage,
+        jpeg: FileImage,
+        gif: FileImage,
+        bmp: FileImage,
+        mp4: FileVideo,
+        webm: FileVideo,
+        mov: FileVideo,
+        avi: FileVideo,
+        mp3: FileAudio,
+        wav: FileAudio,
+        ogg: FileAudio,
+        zip: FileArchive,
+        rar: FileArchive,
+        "7z": FileArchive,
+        tar: FileArchive,
+        gz: FileArchive,
+    };
+    return map[ext] || FileIcon;
+}
+
 export default function ExpTecTab({ token, readOnly = false }) {
     const [projects, setProjects] = useState([]);
     const [projectId, setProjectId] = useState("");
@@ -32,6 +73,8 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const dirInput = useRef(null);
     const nodeMap = useRef({});
     const [uploads, setUploads] = useState([]);
+    const [previewFile, setPreviewFile] = useState(null);
+    const previewRef = useRef(null);
 
     useEffect(() => {
         (async () => {
@@ -62,6 +105,14 @@ export default function ExpTecTab({ token, readOnly = false }) {
         if (!projectId) return;
         loadFiles(projectId, schema);
     }, [projectId, token, query, limit, offset, schema]);
+
+    useEffect(() => {
+        if (previewFile) {
+            previewRef.current?.showModal();
+        } else {
+            previewRef.current?.close();
+        }
+    }, [previewFile]);
 
     function buildBaseTree(sch) {
         const root = {};
@@ -283,6 +334,11 @@ export default function ExpTecTab({ token, readOnly = false }) {
         });
     }
 
+    function previewUrl(fileId) {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        return `${API_URL}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
+    }
+
     function renderNode(node) {
         const dirs = Object.values(node.children || {});
         const files = node.files || [];
@@ -326,47 +382,49 @@ export default function ExpTecTab({ token, readOnly = false }) {
                 {isOpen && (
                     <ul className="ml-4 space-y-1">
                         {children}
-                        {matchedFiles.map((f) => (
-                            <li key={f.id} className="flex items-center gap-2">
-                                <span className="text-slate-700 truncate">
-                                    {highlight(f.filename)} · {bytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
-                                </span>
-                                {f.pending_delete && (
-                                    <span className="text-xs text-red-600">(pendiente)</span>
-                                )}
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        downloadFileById(f.id, f.filename, token, { view: true })
-                                    }
-                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                >
-                                    Ver
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => downloadFileById(f.id, f.filename, token)}
-                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                >
-                                    Descargar
-                                </button>
-                                {f.pending_delete ? (
-                                    <span className="rounded-md border px-2 py-1 text-xs text-slate-500">
-                                        Pendiente
+                        {matchedFiles.map((f) => {
+                            const Icon = fileIconFor(f.filename);
+                            return (
+                                <li key={f.id} className="flex items-center gap-2">
+                                    <Icon size={14} />
+                                    <span className="text-slate-700 truncate">
+                                        {highlight(f.filename)} · v{f.version ?? 1} · {bytes(f.size_bytes)} · {f.content_type} · {new Date(f.uploaded_at).toLocaleDateString()} · {f.uploaded_by}
                                     </span>
-                                ) : (
-                                    !readOnly && (
-                                        <button
-                                            type="button"
-                                            onClick={() => onDelete(f.id)}
-                                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                        >
-                                            Eliminar
-                                        </button>
-                                    )
-                                )}
-                            </li>
-                        ))}
+                                    {f.pending_delete && (
+                                        <span className="text-xs text-red-600">(pendiente)</span>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewFile(f)}
+                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                    >
+                                        Ver
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => downloadFileById(f.id, f.filename, token)}
+                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                    >
+                                        Descargar
+                                    </button>
+                                    {f.pending_delete ? (
+                                        <span className="rounded-md border px-2 py-1 text-xs text-slate-500">
+                                            Pendiente
+                                        </span>
+                                    ) : (
+                                        !readOnly && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onDelete(f.id)}
+                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        )
+                                    )}
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
             </li>
@@ -401,6 +459,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
     }
 
     return (
+        <>
         <div
             className="space-y-4"
             onDragOver={(e) => e.preventDefault()}
@@ -506,5 +565,31 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     .filter(Boolean)}
             </ul>
         </div>
+        <dialog
+            ref={previewRef}
+            className="max-w-4xl w-[80vw] h-[80vh] rounded-lg"
+        >
+            {previewFile && (
+                <div className="flex h-full flex-col">
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="font-medium truncate">
+                            {previewFile.filename}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setPreviewFile(null)}
+                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                    <iframe
+                        src={previewUrl(previewFile.id)}
+                        className="h-full w-full flex-1"
+                    />
+                </div>
+            )}
+        </dialog>
+        </>
     );
 }
