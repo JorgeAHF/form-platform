@@ -28,6 +28,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const fileInput = useRef(null);
     const dirInput = useRef(null);
     const nodeMap = useRef({});
+    const [uploads, setUploads] = useState([]);
 
     useEffect(() => {
         (async () => {
@@ -165,49 +166,22 @@ export default function ExpTecTab({ token, readOnly = false }) {
         dirInput.current?.click();
     }
 
-    async function onFiles(e) {
-        const node = nodeMap.current[activePath];
-        const files = Array.from(e.target.files || []);
-        e.target.value = "";
+    async function uploadFilesToNode(node, files) {
         if (!files.length || !node) return;
         try {
             for (const file of files) {
-                await uploadByCategory(
-                    projectId,
-                    node.sectionKey,
-                    node.categoryKey,
-                    node.subcategoryKey,
-                    file,
-                    token,
-                    node.subpath,
-                    undefined
-                );
-            }
-            await loadFiles(projectId);
-        } catch (err) {
-            console.error(err);
-            alert(err.message || "Error subiendo archivo");
-        }
-    }
-
-    async function onDir(e) {
-        const node = nodeMap.current[activePath];
-        const files = Array.from(e.target.files || []);
-        e.target.value = "";
-        if (!files.length || !node) return;
-        try {
-            for (const file of files) {
-                // webkitRelativePath usa "/" en la mayoría de navegadores, pero
-                // algunos entornos (especialmente en Windows) pueden reportar
-                // separadores "\\". Para asegurar compatibilidad dividimos por
-                // ambos y removemos la carpeta raíz seleccionada.
-                const rel = (file.webkitRelativePath || "")
+                const rel = (file.webkitRelativePath || file.name)
                     .split(/[\\\/]+/)
                     .slice(1);
                 const inner = rel.slice(0, -1).join("/");
                 const sp = node.subpath
                     ? [node.subpath, inner].filter(Boolean).join("/")
                     : inner;
+                const id = Math.random().toString(36).slice(2);
+                setUploads((prev) => [
+                    ...prev,
+                    { id, name: file.name, progress: 0 },
+                ]);
                 await uploadByCategory(
                     projectId,
                     node.sectionKey,
@@ -216,14 +190,48 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     file,
                     token,
                     sp,
-                    undefined
+                    (evt) => {
+                        if (evt.lengthComputable) {
+                            const pct = Math.round(
+                                (evt.loaded / evt.total) * 100
+                            );
+                            setUploads((prev) =>
+                                prev.map((u) =>
+                                    u.id === id ? { ...u, progress: pct } : u
+                                )
+                            );
+                        }
+                    }
                 );
+                setUploads((prev) => prev.filter((u) => u.id !== id));
             }
             await loadFiles(projectId);
         } catch (err) {
             console.error(err);
-            alert(err.message || "Error subiendo carpeta");
+            alert(err.message || "Error subiendo archivos");
         }
+    }
+
+    async function onFiles(e) {
+        const node = nodeMap.current[activePath];
+        const files = Array.from(e.target.files || []);
+        e.target.value = "";
+        await uploadFilesToNode(node, files);
+    }
+
+    async function onDir(e) {
+        const node = nodeMap.current[activePath];
+        const files = Array.from(e.target.files || []);
+        e.target.value = "";
+        await uploadFilesToNode(node, files);
+    }
+
+    async function handleDrop(e, node) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = node || nodeMap.current[activePath];
+        const files = Array.from(e.dataTransfer?.files || []);
+        await uploadFilesToNode(target, files);
     }
 
     async function onDelete(id) {
@@ -263,7 +271,11 @@ export default function ExpTecTab({ token, readOnly = false }) {
         const isOpen = openNodes[node.pathKey];
         return (
             <li key={node.pathKey} className="ml-2">
-                <div className="flex items-center gap-1">
+                <div
+                    className="flex items-center gap-1"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDrop(e, node)}
+                >
                     {hasChildren && (
                         <button
                             type="button"
@@ -360,7 +372,11 @@ export default function ExpTecTab({ token, readOnly = false }) {
     }
 
     return (
-        <div className="space-y-4">
+        <div
+            className="space-y-4"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+        >
             <div>
                 <label className="text-sm font-medium">Proyecto</label>
                 <select
@@ -411,6 +427,20 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     />
                 </div>
             )}
+            {uploads.map((u) => (
+                <div key={u.id} className="w-full max-w-sm">
+                    <div className="flex justify-between text-xs">
+                        <span>{u.name}</span>
+                        <span>{u.progress}%</span>
+                    </div>
+                    <div className="h-2 w-full rounded bg-slate-200">
+                        <div
+                            className="h-2 rounded bg-blue-500"
+                            style={{ width: `${u.progress}%` }}
+                        ></div>
+                    </div>
+                </div>
+            ))}
             <ul className="space-y-1">
                 {Object.values(fileTree).map((sec) => renderNode(sec))}
             </ul>
