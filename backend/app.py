@@ -996,10 +996,13 @@ def download_file(
     # permisos mínimos: viewer del proyecto (o admin)
     ensure_member(db, current, rec.project_id, "viewer")
 
+    inline = request.query_params.get("inline")
+    disposition = "inline" if inline else "attachment"
     return FileResponse(
         path=rec.path,
         filename=rec.filename,
-        media_type=rec.content_type or "application/octet-stream"
+        media_type=rec.content_type or "application/octet-stream",
+        content_disposition_type=disposition,
     )
 
 @app.delete("/files/{file_id}")

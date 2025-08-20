@@ -246,8 +246,9 @@ export async function getProgressExpediente(projectId, token) {
 export async function downloadFileById(fileId, filename, token, opts = {}) {
     const { view = false } = opts;
     const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const url = `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}`;
+    let url = `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}`;
     if (view) {
+        url += "&inline=1";
         window.open(url, "_blank");
     } else {
         const a = document.createElement("a");
