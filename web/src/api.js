@@ -102,8 +102,7 @@ export function uploadByCategory(
     subcategoryKey,
     file,
     token,
-    onProgress,
-    subpath,
+    onProgress
 ) {
     const fd = new FormData();
     fd.append("project_id", projectId);

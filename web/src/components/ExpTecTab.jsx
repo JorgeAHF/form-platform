@@ -102,7 +102,6 @@ export default function ExpTecTab({ token, readOnly = false }) {
         const files = Array.from(e.target.files || []);
         e.target.value = "";
         if (!files.length) return;
-        const base = (subdirs[key] || "").trim().replace(/^\/+|\/+$/g, "");
         try {
             for (const file of files) {
                 await uploadByCategory(
@@ -112,8 +111,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     subKey,
                     file,
                     token,
-                    undefined,
-                    base || undefined,
+                    undefined
                 );
             }
             await loadFiles(projectId);
@@ -127,14 +125,8 @@ export default function ExpTecTab({ token, readOnly = false }) {
         const files = Array.from(e.target.files || []);
         e.target.value = "";
         if (!files.length) return;
-        const base = (subdirs[key] || "").trim().replace(/^\/+|\/+$/g, "");
         try {
             for (const file of files) {
-                let relParts = (file.webkitRelativePath || "").split("/");
-                relParts.shift(); // remove selected root folder
-                relParts.pop(); // remove filename
-                const rel = relParts.join("/");
-                const subpath = [base, rel].filter(Boolean).join("/");
                 await uploadByCategory(
                     projectId,
                     secKey,
@@ -142,8 +134,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     subKey,
                     file,
                     token,
-                    undefined,
-                    subpath || undefined,
+                    undefined
                 );
             }
             await loadFiles(projectId);
@@ -226,18 +217,6 @@ export default function ExpTecTab({ token, readOnly = false }) {
                                             <td className="py-2 pr-3">
                                                 {!readOnly && (
                                                     <>
-                                                        <label className="mb-1 block text-xs text-slate-600">
-                                                            Subcarpeta (opcional)
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="ej: planos/2024"
-                                                            value={subdirs[r.mapKey] || ""}
-                                                            onChange={(e) =>
-                                                                setSubdirs({ ...subdirs, [r.mapKey]: e.target.value })
-                                                            }
-                                                            className="mb-1 w-full rounded-md border px-2 py-1 text-xs"
-                                                        />
                                                         <div className="flex flex-wrap gap-2">
                                                             <button
                                                                 type="button"

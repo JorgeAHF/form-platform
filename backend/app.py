@@ -338,7 +338,6 @@ def resolve_folder_path(
     section_key: str,
     category_key: str,
     subcategory_key: Optional[str] = None,
-    subpath: Optional[str] = None,
 ) -> Path:
     sch = get_project_schema(proj.type)
     section = next((s for s in sch["sections"] if s["key"] == section_key), None)
@@ -1207,7 +1206,6 @@ def upload_file(
             section_key.strip(),
             category_key.strip(),
             subcategory_key.strip() if subcategory_key else None,
-            subpath.strip() if subpath else None,
         )
         stage_fk = None
     else:
