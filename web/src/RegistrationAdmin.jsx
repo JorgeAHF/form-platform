@@ -147,6 +147,7 @@ export default function RegistrationAdmin({ token }) {
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                     >
                         <option value="colaborador">colaborador</option>
+                        <option value="auditor">auditor</option>
                         <option value="admin">admin</option>
                     </select>
                 </div>
@@ -228,6 +229,7 @@ export default function RegistrationAdmin({ token }) {
                     <input value={newUser.initials} onChange={e=>setNewUser({...newUser, initials:e.target.value.toUpperCase()})} placeholder="Iniciales" className="rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300" />
                     <select value={newUser.role} onChange={e=>setNewUser({...newUser, role:e.target.value})} className="rounded-lg border px-3 py-2">
                         <option value="colaborador">colaborador</option>
+                        <option value="auditor">auditor</option>
                         <option value="admin">admin</option>
                     </select>
                     <label className="inline-flex items-center gap-2 text-sm">
@@ -263,6 +265,7 @@ export default function RegistrationAdmin({ token }) {
                                             <td>
                                                 <select value={u.role} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, role:e.target.value}:x))} className="border rounded px-2 py-1 w-32">
                                                     <option value="colaborador">colaborador</option>
+                                                    <option value="auditor">auditor</option>
                                                     <option value="admin">admin</option>
                                                 </select>
                                             </td>
