@@ -45,7 +45,7 @@ class User(Base):
     full_name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False)
     initials = Column(String(16), nullable=False)
-    role = Column(String(32), nullable=False, default="colaborador")  # admin | colaborador
+    role = Column(String(32), nullable=False, default="colaborador")  # admin | colaborador | auditor
     can_create_projects = Column(Boolean, nullable=False, server_default="false")
     created_at = Column(DateTime, default=func.now())
 
@@ -292,9 +292,16 @@ ROLE_ORDER = {"viewer": 0, "uploader": 1, "manager": 2, "admin": 3}
 def is_admin(u: User) -> bool:
     return u.role == "admin"
 
+def is_auditor(u: User) -> bool:
+    return u.role == "auditor"
+
 def ensure_member(db: Session, user: User, project_id: int, need: str = "viewer"):
     if is_admin(user):
         return
+    if is_auditor(user):
+        if need == "viewer":
+            return
+        raise HTTPException(403, "Permisos insuficientes")
     m = db.query(ProjectMember).filter_by(project_id=project_id, user_id=user.id).first()
     if not m:
         raise HTTPException(403, "No eres miembro de este proyecto")
@@ -715,7 +722,7 @@ def create_project(
 
 @app.get("/projects")
 def list_projects(db: Session = Depends(get_db), current: User = Depends(get_current_user)):
-    if is_admin(current):
+    if is_admin(current) or is_auditor(current):
         rows = (
             db.query(Project, ProjectMember.role)
             .outerjoin(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == current.id))
