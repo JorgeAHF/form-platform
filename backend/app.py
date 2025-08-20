@@ -985,7 +985,7 @@ def download_file(
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    current = _user_from_token(db, token)
+    current = _decode_user(db, token)
     if not current:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
