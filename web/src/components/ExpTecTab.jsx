@@ -17,7 +17,7 @@ function bytes(n) {
     return n + " B";
 }
 
-export default function ExpTecTab({ token }) {
+export default function ExpTecTab({ token, readOnly = false }) {
     const [projects, setProjects] = useState([]);
     const [projectId, setProjectId] = useState("");
     const [tree, setTree] = useState({ sections: [] });
@@ -160,21 +160,25 @@ export default function ExpTecTab({ token }) {
                                         <tr key={r.mapKey} className="border-b align-top">
                                             <td className="py-2 pr-3">{r.title}</td>
                                             <td className="py-2 pr-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => pickFile(r.mapKey)}
-                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                                >
-                                                    Subir
-                                                </button>
-                                                <input
-                                                    type="file"
-                                                    className="hidden"
-                                                    ref={(el) => (fileInputs.current[r.mapKey] = el)}
-                                                    onChange={(e) =>
-                                                        onFile(e, r.sectionKey, r.categoryKey, r.subKey, r.mapKey)
-                                                    }
-                                                />
+                                                {!readOnly && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => pickFile(r.mapKey)}
+                                                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                        >
+                                                            Subir
+                                                        </button>
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            ref={(el) => (fileInputs.current[r.mapKey] = el)}
+                                                            onChange={(e) =>
+                                                                onFile(e, r.sectionKey, r.categoryKey, r.subKey, r.mapKey)
+                                                            }
+                                                        />
+                                                    </>
+                                                )}
                                             </td>
                                             <td className="py-2 pr-3">
                                                 <ul className="space-y-1">
@@ -203,13 +207,15 @@ export default function ExpTecTab({ token }) {
                                                             {f.pending_delete ? (
                                                                 <span className="rounded-md border px-2 py-1 text-xs text-slate-500">Pendiente</span>
                                                             ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => onDelete(f.id)}
-                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                                                >
-                                                                    Eliminar
-                                                                </button>
+                                                                !readOnly && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => onDelete(f.id)}
+                                                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                                    >
+                                                                        Eliminar
+                                                                    </button>
+                                                                )
                                                             )}
                                                         </li>
                                                     ))}

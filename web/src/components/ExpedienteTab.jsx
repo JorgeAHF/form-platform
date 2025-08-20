@@ -35,7 +35,7 @@ function ProgressBar({ value }) {
     );
 }
 
-export default function ExpedienteTab({ token }) {
+export default function ExpedienteTab({ token, readOnly = false }) {
     const [projects, setProjects] = useState([]);
     const [projectId, setProjectId] = useState("");
     const [stages, setStages] = useState([]);
@@ -286,21 +286,24 @@ export default function ExpedienteTab({ token }) {
                                                                                     Pendiente
                                                                                 </span>
                                                                             ) : (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => onDeleteFile(f.id)}
-                                                                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                                                                    title="Eliminar"
-                                                                                >
-                                                                                    Eliminar
-                                                                                </button>
+                                                                                !readOnly && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => onDeleteFile(f.id)}
+                                                                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                                                        title="Eliminar"
+                                                                                    >
+                                                                                        Eliminar
+                                                                                    </button>
+                                                                                )
                                                                             )}
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
-                                                            )}
-                                                        </td>
-                                                        <td className="py-3 align-top">
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 align-top">
+                                                        {!readOnly && (
                                                             <div className="flex items-center gap-2">
                                                                 <input
                                                                     ref={(el) => (fileInputs.current[d.key] = el)}
@@ -318,12 +321,13 @@ export default function ExpedienteTab({ token }) {
                                                                     {busy ? "Subiendo..." : hasActive && !d.multi ? "Reemplazar" : "Subir"}
                                                                 </button>
                                                             </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                                 </div>
                                 {/* barra global de subida */}
                                 {busy && (

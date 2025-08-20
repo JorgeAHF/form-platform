@@ -145,7 +145,7 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
     }
 
     const owned = projects.filter(p => p.is_owner);
-    const member = projects.filter(p => !p.is_owner);
+    const member = role === "auditor" ? projects : projects.filter(p => !p.is_owner);
 
     function roleLabel(r) {
         switch (r) {
@@ -249,14 +249,14 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
                         )}
                         {member.length > 0 && (
                             <div>
-                                <h3 className="text-sm font-medium mb-2">Proyectos como miembro</h3>
+                                <h3 className="text-sm font-medium mb-2">{role === "auditor" ? "Todos los proyectos" : "Proyectos como miembro"}</h3>
                                 <div className="rounded-xl border overflow-hidden">
                                     <table className="w-full border-collapse text-sm">
                                         <thead className="bg-slate-100">
                                             <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
                                                 <th>Código</th>
                                                 <th>Nombre</th>
-                                                <th>Mi rol</th>
+                                                {role !== "auditor" && <th>Mi rol</th>}
                                             </tr>
                                         </thead>
                                         <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
@@ -264,7 +264,7 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
                                                 <tr key={p.id}>
                                                     <td>{p.code}</td>
                                                     <td>{p.name}</td>
-                                                    <td>{roleLabel(p.role)}</td>
+                                                    {role !== "auditor" && <td>{roleLabel(p.role)}</td>}
                                                 </tr>
                                             ))}
                                         </tbody>
