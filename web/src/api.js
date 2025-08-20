@@ -130,6 +130,34 @@ export async function deleteFile(fileId, token) {
     return j;
 }
 
+export async function requestDeleteFile(fileId, reason, token) {
+    const r = await fetch(`${API}/files/${fileId}/request-delete`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/x-www-form-urlencoded" },
+        body: asForm({ reason }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "No se pudo solicitar la eliminación");
+    return j;
+}
+
+export async function listDeleteRequests(token) {
+    const r = await fetch(`${API}/file-delete-requests`, { headers: authHeaders(token) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error listando solicitudes");
+    return j.items || [];
+}
+
+export async function approveDeleteRequest(reqId, token) {
+    const r = await fetch(`${API}/file-delete-requests/${reqId}/approve`, {
+        method: "POST",
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error aprobando solicitud");
+    return j;
+}
+
 // -------------- progreso de proyecto --------------
 export async function getProjectProgress(projectId, token) {
     const r = await fetch(`${API}/projects/${projectId}/progress`, {

@@ -5,7 +5,7 @@ import {
     listFiles,
     uploadByCategory,
     downloadFileById,
-    deleteFile,
+    requestDeleteFile,
 } from "../api";
 
 function bytes(n) {
@@ -90,13 +90,14 @@ export default function ExpTecTab({ token }) {
     }
 
     async function onDelete(id) {
-        if (!window.confirm("¿Eliminar este archivo?")) return;
+        const reason = window.prompt("Motivo para eliminar este archivo:");
+        if (!reason || !reason.trim()) return;
         try {
-            await deleteFile(id, token);
-            await loadFiles(projectId);
+            await requestDeleteFile(id, reason, token);
+            alert("Solicitud enviada");
         } catch (err) {
             console.error(err);
-            alert(err.message || "Error eliminando archivo");
+            alert(err.message || "Error solicitando eliminación");
         }
     }
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { login, requestRegister } from "./api";
 import ProjectAdmin from "./ProjectAdmin";
 import RegistrationAdmin from "./RegistrationAdmin";
+import DeleteRequestsAdmin from "./DeleteRequestsAdmin";
 import toast from "react-hot-toast";
 import { LogOut, Upload, Settings2, ClipboardList } from "lucide-react";
 import ExpedienteTab from "./components/ExpedienteTab";
@@ -155,6 +156,7 @@ export default function App() {
                         ) : tab === "solicitudes" ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
                                 <RegistrationAdmin token={token} />
+                                <DeleteRequestsAdmin token={token} />
                             </div>
                         ) : null}
                     </>
