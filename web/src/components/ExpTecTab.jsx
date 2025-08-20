@@ -22,7 +22,9 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const [projectId, setProjectId] = useState("");
     const [tree, setTree] = useState({ sections: [] });
     const [filesMap, setFilesMap] = useState({});
+    const [subdirs, setSubdirs] = useState({});
     const fileInputs = useRef({});
+    const dirInputs = useRef({});
 
     useEffect(() => {
         (async () => {
@@ -43,16 +45,23 @@ export default function ExpTecTab({ token, readOnly = false }) {
             try {
                 const t = await getCategoryTree(projectId, token);
                 setTree(t);
-                await loadFiles(projectId);
+                await loadFiles(projectId, t);
             } catch (err) {
                 console.error(err);
             }
         })();
     }, [projectId, token]);
 
-    async function loadFiles(pid) {
+    async function loadFiles(pid, currTree = tree) {
         try {
             const items = await listFiles(pid, {}, token);
+            const catMap = {};
+            currTree.sections.forEach((sec) => {
+                sec.categories.forEach((cat) => {
+                    const key = [sec.folder, cat.folder].join("/");
+                    catMap[key] = new Set((cat.children || []).map((c) => c.folder));
+                });
+            });
             const map = {};
             for (const f of items) {
                 if (f.stage) continue; // solo info técnica
@@ -60,11 +69,20 @@ export default function ExpTecTab({ token, readOnly = false }) {
                 const parts = f.path.split("/");
                 const section = parts[0];
                 const category = parts[1];
+                const dateIdx = parts.length - 2;
+                const rest = parts.slice(2, dateIdx);
+                const baseKey = [section, category].join("/");
                 let sub = null;
-                if (parts.length > 4) sub = parts[2];
+                let subpath = "";
+                if (rest.length && catMap[baseKey]?.has(rest[0])) {
+                    sub = rest[0];
+                    subpath = rest.slice(1).join("/");
+                } else {
+                    subpath = rest.join("/");
+                }
                 const key = [section, category, sub].filter(Boolean).join("/");
                 if (!map[key]) map[key] = [];
-                map[key].push(f);
+                map[key].push({ ...f, subpath });
             }
             setFilesMap(map);
         } catch (err) {
@@ -72,20 +90,66 @@ export default function ExpTecTab({ token, readOnly = false }) {
         }
     }
 
-    function pickFile(key) {
+    function pickFiles(key) {
         fileInputs.current[key]?.click();
     }
 
-    async function onFile(e, secKey, catKey, subKey, key) {
-        const file = e.target.files?.[0];
+    function pickDir(key) {
+        dirInputs.current[key]?.click();
+    }
+
+    async function onFiles(e, secKey, catKey, subKey, key) {
+        const files = Array.from(e.target.files || []);
         e.target.value = "";
-        if (!file) return;
+        if (!files.length) return;
+        const base = (subdirs[key] || "").trim().replace(/^\/+|\/+$/g, "");
         try {
-            await uploadByCategory(projectId, secKey, catKey, subKey, file, token);
+            for (const file of files) {
+                await uploadByCategory(
+                    projectId,
+                    secKey,
+                    catKey,
+                    subKey,
+                    file,
+                    token,
+                    undefined,
+                    base || undefined,
+                );
+            }
             await loadFiles(projectId);
         } catch (err) {
             console.error(err);
             alert(err.message || "Error subiendo archivo");
+        }
+    }
+
+    async function onDir(e, secKey, catKey, subKey, key) {
+        const files = Array.from(e.target.files || []);
+        e.target.value = "";
+        if (!files.length) return;
+        const base = (subdirs[key] || "").trim().replace(/^\/+|\/+$/g, "");
+        try {
+            for (const file of files) {
+                let relParts = (file.webkitRelativePath || "").split("/");
+                relParts.shift(); // remove selected root folder
+                relParts.pop(); // remove filename
+                const rel = relParts.join("/");
+                const subpath = [base, rel].filter(Boolean).join("/");
+                await uploadByCategory(
+                    projectId,
+                    secKey,
+                    catKey,
+                    subKey,
+                    file,
+                    token,
+                    undefined,
+                    subpath || undefined,
+                );
+            }
+            await loadFiles(projectId);
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Error subiendo carpeta");
         }
     }
 
@@ -162,19 +226,49 @@ export default function ExpTecTab({ token, readOnly = false }) {
                                             <td className="py-2 pr-3">
                                                 {!readOnly && (
                                                     <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => pickFile(r.mapKey)}
-                                                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                                        >
-                                                            Subir
-                                                        </button>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Subcarpeta"
+                                                            value={subdirs[r.mapKey] || ""}
+                                                            onChange={(e) =>
+                                                                setSubdirs({ ...subdirs, [r.mapKey]: e.target.value })
+                                                            }
+                                                            className="mb-1 w-full rounded-md border px-2 py-1 text-xs"
+                                                        />
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => pickFiles(r.mapKey)}
+                                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                            >
+                                                                Subir archivos
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => pickDir(r.mapKey)}
+                                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                            >
+                                                                Subir carpeta
+                                                            </button>
+                                                        </div>
                                                         <input
                                                             type="file"
+                                                            multiple
                                                             className="hidden"
                                                             ref={(el) => (fileInputs.current[r.mapKey] = el)}
                                                             onChange={(e) =>
-                                                                onFile(e, r.sectionKey, r.categoryKey, r.subKey, r.mapKey)
+                                                                onFiles(e, r.sectionKey, r.categoryKey, r.subKey, r.mapKey)
+                                                            }
+                                                        />
+                                                        <input
+                                                            type="file"
+                                                            multiple
+                                                            webkitdirectory="true"
+                                                            directory=""
+                                                            className="hidden"
+                                                            ref={(el) => (dirInputs.current[r.mapKey] = el)}
+                                                            onChange={(e) =>
+                                                                onDir(e, r.sectionKey, r.categoryKey, r.subKey, r.mapKey)
                                                             }
                                                         />
                                                     </>
@@ -185,7 +279,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                                                     {(filesMap[r.mapKey] || []).map((f) => (
                                                         <li key={f.id} className="flex items-center gap-2">
                                                             <span className="text-slate-700 truncate">
-                                                                {f.filename} · {bytes(f.size_bytes)}
+                                                                {f.subpath ? `${f.subpath}/` : ""}{f.filename} · {bytes(f.size_bytes)}
                                                             </span>
                                                             {f.pending_delete && (
                                                                 <span className="text-xs text-red-600">(pendiente)</span>
