@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { listDeleteRequests, approveDeleteRequest, rejectDeleteRequest } from "./api";
 
+
+
 export default function DeleteRequestsAdmin({ token }) {
     const [items, setItems] = useState([]);
 
@@ -81,6 +83,7 @@ export default function DeleteRequestsAdmin({ token }) {
                     {items.length === 0 && (
                         <tr>
                             <td className="py-4 text-center text-slate-500" colSpan={5}>
+
                                 No hay solicitudes pendientes.
                             </td>
                         </tr>
