@@ -333,7 +333,13 @@ def get_project_schema(ptype: str) -> Dict:
         raise HTTPException(500, "Esquema de carpetas no configurado para el tipo")
     return sch
 
-def resolve_folder_path(proj: Project, section_key: str, category_key: str, subcategory_key: Optional[str] = None) -> Path:
+def resolve_folder_path(
+    proj: Project,
+    section_key: str,
+    category_key: str,
+    subcategory_key: Optional[str] = None,
+    subpath: Optional[str] = None,
+) -> Path:
     sch = get_project_schema(proj.type)
     section = next((s for s in sch["sections"] if s["key"] == section_key), None)
     if not section:
@@ -348,6 +354,11 @@ def resolve_folder_path(proj: Project, section_key: str, category_key: str, subc
         if not sub:
             raise HTTPException(400, "Subcategoría inválida")
         parts.append(sub["folder"])
+    if subpath:
+        for part in Path(subpath).parts:
+            cleaned = safe_folder(part)
+            if cleaned:
+                parts.append(cleaned)
     parts.append(datetime.utcnow().strftime("%Y-%m-%d"))
     return FILES_ROOT / "projects" / Path("/".join(parts))
 
@@ -1178,6 +1189,7 @@ def upload_file(
     section_key: Optional[str] = Form(None),
     category_key: Optional[str] = Form(None),
     subcategory_key: Optional[str] = Form(None),
+    subpath: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
@@ -1194,7 +1206,8 @@ def upload_file(
             proj,
             section_key.strip(),
             category_key.strip(),
-            subcategory_key.strip() if subcategory_key else None
+            subcategory_key.strip() if subcategory_key else None,
+            subpath.strip() if subpath else None,
         )
         stage_fk = None
     else:
@@ -1214,7 +1227,9 @@ def upload_file(
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     ext = Path(file.filename).suffix.lower().lstrip(".")
-    if ext not in ALLOWED_EXT:
+    # Para expediente técnico (sin stage_id) se permite cualquier extensión.
+    # Solo validamos contra ALLOWED_EXT cuando se sube a una etapa del expediente IMT.
+    if stage_fk and ALLOWED_EXT and ext not in ALLOWED_EXT:
         raise HTTPException(415, f"Extensión no permitida: .{ext}")
 
     dest_path = dest_dir / file.filename
