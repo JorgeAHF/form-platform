@@ -1,17 +1,19 @@
 import os
 import re
 import hashlib
+import io
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 
 from fastapi import (
     FastAPI, UploadFile, File, Form, Depends, HTTPException, status,
-    Query, Request
+    Query, Request, Body
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from jose import jwt, JWTError
 from passlib.hash import bcrypt
@@ -1176,6 +1178,63 @@ def list_files(
             "pending_delete": dr is not None,
         })
     return {"items": items, "limit": limit, "offset": offset}
+
+
+@app.post("/projects/{project_id}/files/bulk-download")
+def bulk_download_files(
+    project_id: int,
+    ids: List[int] = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    ensure_member(db, current, project_id, "viewer")
+    files = (
+        db.query(FileRecord)
+        .filter(FileRecord.project_id == project_id, FileRecord.id.in_(ids))
+        .all()
+    )
+    if not files:
+        raise HTTPException(404, "No se encontraron archivos")
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            p = Path(f.path)
+            if p.exists():
+                zf.write(p, arcname=f.filename)
+    mem.seek(0)
+    headers = {
+        "Content-Disposition": f"attachment; filename=project_{project_id}_files.zip"
+    }
+    return StreamingResponse(mem, media_type="application/zip", headers=headers)
+
+
+@app.post("/projects/{project_id}/files/bulk-delete")
+def bulk_request_delete(
+    project_id: int,
+    payload: Dict = Body(...),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    ids = payload.get("ids") or []
+    reason = (payload.get("reason") or "").strip()
+    if not ids or not reason:
+        raise HTTPException(400, "ids y reason requeridos")
+    ensure_member(db, current, project_id, "manager")
+    created = []
+    for fid in ids:
+        rec = db.get(FileRecord, fid)
+        if not rec or rec.project_id != project_id:
+            continue
+        if db.query(FileDeleteRequest).filter_by(file_id=fid, status="pending").first():
+            continue
+        req = FileDeleteRequest(
+            file_id=fid, requested_by=current.id, reason=reason
+        )
+        db.add(req)
+        db.flush()
+        created.append(req.id)
+    db.commit()
+    return {"ok": True, "request_ids": created}
 
 
 # -------- Upload de archivos --------

@@ -17,6 +17,8 @@ import {
     uploadByCategory,
     downloadFileById,
     requestDeleteFile,
+    bulkDownloadFiles,
+    bulkRequestDelete,
 } from "../api";
 
 function bytes(n) {
@@ -75,6 +77,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
     const [uploads, setUploads] = useState([]);
     const [previewFile, setPreviewFile] = useState(null);
     const previewRef = useRef(null);
+    const [selected, setSelected] = useState([]);
 
     useEffect(() => {
         (async () => {
@@ -334,6 +337,35 @@ export default function ExpTecTab({ token, readOnly = false }) {
         });
     }
 
+    function toggleSelect(id) {
+        setSelected((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+    }
+
+    async function bulkDownload() {
+        try {
+            await bulkDownloadFiles(projectId, selected, token);
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Error descargando archivos");
+        }
+    }
+
+    async function bulkDelete() {
+        const reason = window.prompt("Motivo para eliminar estos archivos:");
+        if (!reason || !reason.trim()) return;
+        try {
+            await bulkRequestDelete(projectId, selected, reason, token);
+            alert("Solicitud enviada");
+            setSelected([]);
+            await loadFiles(projectId);
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Error solicitando eliminación");
+        }
+    }
+
     function previewUrl(fileId) {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
         return `${API_URL}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
@@ -386,6 +418,11 @@ export default function ExpTecTab({ token, readOnly = false }) {
                             const Icon = fileIconFor(f.filename);
                             return (
                                 <li key={f.id} className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={selected.includes(f.id)}
+                                        onChange={() => toggleSelect(f.id)}
+                                    />
                                     <Icon size={14} />
                                     <span className="text-slate-700 truncate">
                                         {highlight(f.filename)} · v{f.version ?? 1} · {bytes(f.size_bytes)} · {f.content_type} · {new Date(f.uploaded_at).toLocaleDateString()} · {f.uploaded_by}
@@ -559,6 +596,26 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     </div>
                 </div>
             ))}
+            {selected.length > 0 && (
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={bulkDownload}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                    >
+                        Descargar ZIP
+                    </button>
+                    {!readOnly && (
+                        <button
+                            type="button"
+                            onClick={bulkDelete}
+                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                        >
+                            Eliminar seleccionados
+                        </button>
+                    )}
+                </div>
+            )}
             <ul className="space-y-1">
                 {Object.values(fileTree)
                     .map((sec) => renderNode(sec))
