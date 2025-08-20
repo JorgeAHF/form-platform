@@ -23,7 +23,7 @@ export default function App() {
     const [regInitials, setRegInitials] = useState("");
     const [myInitials, setMyInitials] = useState("");
 
-    const [tab, setTab] = useState("expTec"); // expediente | expTec | proyectos | solicitudes
+    const [tab, setTab] = useState("proyectos"); // expediente | expTec | proyectos | solicitudes
 
     useEffect(() => { if (token) localStorage.setItem("apiToken", token); }, [token]);
 
@@ -35,6 +35,7 @@ export default function App() {
             setRole(j.role);
             setCanCreate(j.can_create_projects);
             setMyInitials(j.initials || "");
+            setTab("proyectos");
             toast.success("Sesión iniciada");
         } catch (err) {
             toast.error(err.message || "Login inválido");
@@ -79,8 +80,8 @@ export default function App() {
             <header className="border-b bg-white">
                 <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="size-8 rounded-lg bg-slate-900 text-white grid place-content-center font-bold">E</div>
-                        <h1 className="text-lg font-semibold tracking-tight">Entregables</h1>
+                        <div className="h-8 px-3 rounded-lg bg-slate-900 text-white grid place-content-center font-bold">PRAP</div>
+                        <h1 className="text-lg font-semibold tracking-tight">Plataforma de Respaldos para Archivos de Proyectos</h1>
                         {token && <span className="ml-3 text-xs text-slate-500">({role})</span>}
                     </div>
                     {token && (
