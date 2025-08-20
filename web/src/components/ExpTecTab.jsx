@@ -150,7 +150,6 @@ export default function ExpTecTab({ token, readOnly = false }) {
     function pickDir(key) {
         dirInputs.current[key]?.click();
     }
-
     async function onFiles(e, key) {
         const node = nodeMap.current[key];
         const files = Array.from(e.target.files || []);
@@ -321,7 +320,6 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     ))}
                 </select>
             </div>
-
             <ul className="space-y-1">
                 {Object.values(fileTree).map((sec) => renderNode(sec))}
             </ul>
