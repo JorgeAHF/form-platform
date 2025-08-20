@@ -1079,9 +1079,7 @@ def approve_delete_request(
         except Exception:
             pass
         db.delete(rec)
-    req.status = "approved"
-    req.decided_at = func.now()
-    req.decided_by = current.id
+    db.delete(req)
     db.commit()
     return {"ok": True}
 
