@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import {
     ChevronDown,
     ChevronRight,
@@ -87,7 +88,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                 const pid = projs?.[0]?.id ? String(projs[0].id) : "";
                 setProjectId(pid);
             } catch (err) {
-                console.error(err);
+                toast.error(err.message || "Error cargando proyectos");
             }
         })();
     }, [token]);
@@ -99,7 +100,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                 const t = await getCategoryTree(projectId, token);
                 setSchema(t);
             } catch (err) {
-                console.error(err);
+                toast.error(err.message || "Error cargando categorías");
             }
         })();
     }, [projectId, token]);
@@ -214,7 +215,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     : Object.values(base)[0]?.pathKey || ""
             );
         } catch (err) {
-            console.error(err);
+            toast.error(err.message || "Error cargando archivos");
         }
     }
 
@@ -280,8 +281,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
             }
             await loadFiles(projectId);
         } catch (err) {
-            console.error(err);
-            alert(err.message || "Error subiendo archivos");
+            toast.error(err.message || "Error subiendo archivos");
         }
     }
 
@@ -312,11 +312,10 @@ export default function ExpTecTab({ token, readOnly = false }) {
         if (!reason || !reason.trim()) return;
         try {
             await requestDeleteFile(id, reason, token);
-            alert("Solicitud enviada");
+            toast.success("Solicitud enviada");
             await loadFiles(projectId);
         } catch (err) {
-            console.error(err);
-            alert(err.message || "Error solicitando eliminación");
+            toast.error(err.message || "Error solicitando eliminación");
         }
     }
 
@@ -347,8 +346,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
         try {
             await bulkDownloadFiles(projectId, selected, token);
         } catch (err) {
-            console.error(err);
-            alert(err.message || "Error descargando archivos");
+            toast.error(err.message || "Error descargando archivos");
         }
     }
 
@@ -357,12 +355,11 @@ export default function ExpTecTab({ token, readOnly = false }) {
         if (!reason || !reason.trim()) return;
         try {
             await bulkRequestDelete(projectId, selected, reason, token);
-            alert("Solicitud enviada");
+            toast.success("Solicitud enviada");
             setSelected([]);
             await loadFiles(projectId);
         } catch (err) {
-            console.error(err);
-            alert(err.message || "Error solicitando eliminación");
+            toast.error(err.message || "Error solicitando eliminación");
         }
     }
 

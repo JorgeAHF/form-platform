@@ -3,7 +3,7 @@ import { login, requestRegister } from "./api";
 import ProjectAdmin from "./ProjectAdmin";
 import RegistrationAdmin from "./RegistrationAdmin";
 import DeleteRequestsAdmin from "./DeleteRequestsAdmin";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import { LogOut, Upload, Settings2, ClipboardList } from "lucide-react";
 import ExpedienteTab from "./components/ExpedienteTab";
 import ExpTecTab from "./components/ExpTecTab";
@@ -163,6 +163,7 @@ export default function App() {
                     </>
                 )}
             </main>
+            <Toaster position="top-right" />
         </div>
     );
 }
