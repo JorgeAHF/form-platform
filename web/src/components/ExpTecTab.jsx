@@ -368,10 +368,10 @@ export default function ExpTecTab({ token, readOnly = false }) {
         return `${API_URL}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
     }
 
-    function renderNode(node) {
+    function renderTree(node) {
         const dirs = Object.values(node.children || {});
         const files = node.files || [];
-        const children = dirs.map((d) => renderNode(d)).filter(Boolean);
+        const children = dirs.map((d) => renderTree(d)).filter(Boolean);
         const matchedFiles = query
             ? files.filter((f) =>
                   f.filename.toLowerCase().includes(query.toLowerCase())
@@ -409,57 +409,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
                     </span>
                 </div>
                 {isOpen && (
-                    <ul className="ml-4 space-y-1">
-                        {children}
-                        {matchedFiles.map((f) => {
-                            const Icon = fileIconFor(f.filename);
-                            return (
-                                <li key={f.id} className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={selected.includes(f.id)}
-                                        onChange={() => toggleSelect(f.id)}
-                                    />
-                                    <Icon size={14} />
-                                    <span className="text-slate-700 truncate">
-                                        {highlight(f.filename)} · v{f.version ?? 1} · {bytes(f.size_bytes)} · {f.content_type} · {new Date(f.uploaded_at).toLocaleDateString()} · {f.uploaded_by}
-                                    </span>
-                                    {f.pending_delete && (
-                                        <span className="text-xs text-red-600">(pendiente)</span>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={() => setPreviewFile(f)}
-                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                    >
-                                        Ver
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => downloadFileById(f.id, f.filename, token)}
-                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                    >
-                                        Descargar
-                                    </button>
-                                    {f.pending_delete ? (
-                                        <span className="rounded-md border px-2 py-1 text-xs text-slate-500">
-                                            Pendiente
-                                        </span>
-                                    ) : (
-                                        !readOnly && (
-                                            <button
-                                                type="button"
-                                                onClick={() => onDelete(f.id)}
-                                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                                            >
-                                                Eliminar
-                                            </button>
-                                        )
-                                    )}
-                                </li>
-                            );
-                        })}
-                    </ul>
+                    <ul className="ml-4 space-y-1">{children}</ul>
                 )}
             </li>
         );
@@ -492,158 +442,247 @@ export default function ExpTecTab({ token, readOnly = false }) {
         );
     }
 
+    const activeFiles = (() => {
+        const node = nodeMap.current[activePath];
+        if (!node) return [];
+        const files = node.files || [];
+        return query
+            ? files.filter((f) =>
+                  f.filename.toLowerCase().includes(query.toLowerCase())
+              )
+            : files;
+    })();
+
     return (
         <>
-        <div
-            className="space-y-4"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-        >
-            <div>
-                <label className="text-sm font-medium">Proyecto</label>
-                <select
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    className="mt-1 w-full max-w-sm rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
-                >
-                    <option value="">— Selecciona —</option>
-                    {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                            {p.code} — {p.name}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div>
-                <label className="text-sm font-medium">Buscar</label>
-                <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Buscar..."
-                    className="mt-1 w-full max-w-sm rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
-                />
-            </div>
-            <div className="flex gap-2">
+            <div className="space-y-4">
                 <div>
-                    <label className="text-sm font-medium">Límite</label>
-                    <input
-                        type="number"
-                        value={limit}
-                        onChange={(e) => setLimit(Number(e.target.value))}
-                        className="mt-1 w-24 rounded-lg border px-2 py-1 outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                </div>
-                <div>
-                    <label className="text-sm font-medium">Offset</label>
-                    <input
-                        type="number"
-                        value={offset}
-                        onChange={(e) => setOffset(Number(e.target.value))}
-                        className="mt-1 w-24 rounded-lg border px-2 py-1 outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                </div>
-            </div>
-            <Breadcrumb pathKey={activePath} onSelect={handleSelectNode} />
-            {activePath && nodeMap.current[activePath]?.categoryKey && !readOnly && (
-                <div className="flex gap-2">
-                    <button
-                        type="button"
-                        onClick={pickFiles}
-                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                    <label className="text-sm font-medium">Proyecto</label>
+                    <select
+                        value={projectId}
+                        onChange={(e) => setProjectId(e.target.value)}
+                        className="mt-1 w-full max-w-sm rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                     >
-                        Subir archivos
-                    </button>
-                    <button
-                        type="button"
-                        onClick={pickDir}
-                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                    >
-                        Subir carpeta
-                    </button>
-                    <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        ref={fileInput}
-                        onChange={onFiles}
-                    />
-                    <input
-                        type="file"
-                        multiple
-                        webkitdirectory="true"
-                        directory=""
-                        className="hidden"
-                        ref={dirInput}
-                        onChange={onDir}
-                    />
+                        <option value="">— Selecciona —</option>
+                        {projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                                {p.code} — {p.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
-            )}
-            {uploads.map((u) => (
-                <div key={u.id} className="w-full max-w-sm">
-                    <div className="flex justify-between text-xs">
-                        <span>{u.name}</span>
-                        <span>{u.progress}%</span>
+                <div className="flex gap-4" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+                    <div className="w-1/3 rounded border p-2 overflow-y-auto max-h-[70vh]">
+                        <ul className="space-y-1">
+                            {Object.values(fileTree)
+                                .map((sec) => renderTree(sec))
+                                .filter(Boolean)}
+                        </ul>
                     </div>
-                    <div className="h-2 w-full rounded bg-slate-200">
+                    <div className="flex-1 space-y-2">
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div>
+                                <label className="text-sm font-medium">Buscar</label>
+                                <input
+                                    type="text"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Buscar..."
+                                    className="mt-1 w-full max-w-sm rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">Límite</label>
+                                <input
+                                    type="number"
+                                    value={limit}
+                                    onChange={(e) => setLimit(Number(e.target.value))}
+                                    className="mt-1 w-24 rounded-lg border px-2 py-1 outline-none focus:ring-2 focus:ring-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">Offset</label>
+                                <input
+                                    type="number"
+                                    value={offset}
+                                    onChange={(e) => setOffset(Number(e.target.value))}
+                                    className="mt-1 w-24 rounded-lg border px-2 py-1 outline-none focus:ring-2 focus:ring-slate-300"
+                                />
+                            </div>
+                        </div>
+                        <Breadcrumb pathKey={activePath} onSelect={handleSelectNode} />
+                        {activePath && nodeMap.current[activePath]?.categoryKey && !readOnly && (
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={pickFiles}
+                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                >
+                                    Subir archivos
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={pickDir}
+                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                >
+                                    Subir carpeta
+                                </button>
+                                <input
+                                    type="file"
+                                    multiple
+                                    className="hidden"
+                                    ref={fileInput}
+                                    onChange={onFiles}
+                                />
+                                <input
+                                    type="file"
+                                    multiple
+                                    webkitdirectory="true"
+                                    directory=""
+                                    className="hidden"
+                                    ref={dirInput}
+                                    onChange={onDir}
+                                />
+                            </div>
+                        )}
+                        {uploads.map((u) => (
+                            <div key={u.id} className="w-full max-w-sm">
+                                <div className="flex justify-between text-xs">
+                                    <span>{u.name}</span>
+                                    <span>{u.progress}%</span>
+                                </div>
+                                <div className="h-2 w-full rounded bg-slate-200">
+                                    <div
+                                        className="h-2 rounded bg-blue-500"
+                                        style={{ width: `${u.progress}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+                        {selected.length > 0 && (
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={bulkDownload}
+                                    className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                >
+                                    Descargar ZIP
+                                </button>
+                                {!readOnly && (
+                                    <button
+                                        type="button"
+                                        onClick={bulkDelete}
+                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                    >
+                                        Eliminar seleccionados
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         <div
-                            className="h-2 rounded bg-blue-500"
-                            style={{ width: `${u.progress}%` }}
-                        ></div>
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleDrop(e, nodeMap.current[activePath])}
+                        >
+                            <table className="min-w-full text-sm border">
+                                <thead className="bg-slate-100">
+                                    <tr>
+                                        <th className="p-2"></th>
+                                        <th className="p-2 text-left">Nombre</th>
+                                        <th className="p-2">Versión</th>
+                                        <th className="p-2">Tamaño</th>
+                                        <th className="p-2">Tipo</th>
+                                        <th className="p-2">Fecha</th>
+                                        <th className="p-2">Usuario</th>
+                                        <th className="p-2">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeFiles.map((f) => {
+                                        const Icon = fileIconFor(f.filename);
+                                        return (
+                                            <tr key={f.id} className="border-t">
+                                                <td className="p-2 align-top">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selected.includes(f.id)}
+                                                        onChange={() => toggleSelect(f.id)}
+                                                    />
+                                                </td>
+                                                <td className="p-2 align-top">
+                                                    <div className="flex items-center gap-2">
+                                                        <Icon size={14} />
+                                                        <span className="truncate">{highlight(f.filename)}</span>
+                                                        {f.pending_delete && (
+                                                            <span className="text-xs text-red-600">(pendiente)</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-2 align-top">v{f.version ?? 1}</td>
+                                                <td className="p-2 align-top">{bytes(f.size_bytes)}</td>
+                                                <td className="p-2 align-top">{f.content_type}</td>
+                                                <td className="p-2 align-top">
+                                                    {new Date(f.uploaded_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="p-2 align-top">{f.uploaded_by}</td>
+                                                <td className="p-2 flex gap-2 flex-wrap align-top">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPreviewFile(f)}
+                                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                    >
+                                                        Ver
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => downloadFileById(f.id, f.filename, token)}
+                                                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                    >
+                                                        Descargar
+                                                    </button>
+                                                    {!readOnly && !f.pending_delete && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onDelete(f.id)}
+                                                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            ))}
-            {selected.length > 0 && (
-                <div className="flex gap-2">
-                    <button
-                        type="button"
-                        onClick={bulkDownload}
-                        className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                    >
-                        Descargar ZIP
-                    </button>
-                    {!readOnly && (
-                        <button
-                            type="button"
-                            onClick={bulkDelete}
-                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                        >
-                            Eliminar seleccionados
-                        </button>
-                    )}
-                </div>
-            )}
-            <ul className="space-y-1">
-                {Object.values(fileTree)
-                    .map((sec) => renderNode(sec))
-                    .filter(Boolean)}
-            </ul>
-        </div>
-        <dialog
-            ref={previewRef}
-            className="max-w-4xl w-[80vw] h-[80vh] rounded-lg"
-        >
-            {previewFile && (
-                <div className="flex h-full flex-col">
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="font-medium truncate">
-                            {previewFile.filename}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => setPreviewFile(null)}
-                            className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
-                        >
-                            Cerrar
-                        </button>
+            </div>
+            <dialog
+                ref={previewRef}
+                className="max-w-4xl w-[80vw] h-[80vh] rounded-lg"
+            >
+                {previewFile && (
+                    <div className="flex h-full flex-col">
+                        <div className="mb-2 flex items-center justify-between">
+                            <span className="font-medium truncate">
+                                {previewFile.filename}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setPreviewFile(null)}
+                                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                        <iframe
+                            src={previewUrl(previewFile.id)}
+                            className="h-full w-full flex-1"
+                        />
                     </div>
-                    <iframe
-                        src={previewUrl(previewFile.id)}
-                        className="h-full w-full flex-1"
-                    />
-                </div>
-            )}
-        </dialog>
+                )}
+            </dialog>
         </>
     );
 }
