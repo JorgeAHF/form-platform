@@ -46,7 +46,7 @@ export async function login(username, password) {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Credenciales inválidas");
-    return j; // {access_token, token_type, role, can_create_projects}
+    return j; // {access_token, token_type, role, can_create_projects, can_access_exptec}
 }
 
 export async function requestRegister(username, password, wantCreate = false, full_name, email, initials) {

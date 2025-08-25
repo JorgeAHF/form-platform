@@ -9,12 +9,13 @@ export default function RegistrationAdmin({ token }) {
     const [busyId, setBusyId] = useState(null);
     const [defaultRole, setDefaultRole] = useState("colaborador");
     const [grantCreate, setGrantCreate] = useState(false);
+    const [grantExpTec, setGrantExpTec] = useState(true);
     const [reason, setReason] = useState("");
 
     const [users, setUsers] = useState([]);
     const [userBusy, setUserBusy] = useState(null);
     const [editId, setEditId] = useState(null);
-    const [newUser, setNewUser] = useState({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false });
+    const [newUser, setNewUser] = useState({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false, can_exptec: true });
 
     async function loadRegs() {
         try {
@@ -46,6 +47,7 @@ export default function RegistrationAdmin({ token }) {
             const fd = new FormData();
             fd.append("role", defaultRole);
             fd.append("can_create", grantCreate ? "true" : "false");
+            fd.append("can_exptec", grantExpTec ? "true" : "false");
             const r = await fetch(`${API}/admin/registrations/${id}/approve`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
@@ -90,9 +92,9 @@ export default function RegistrationAdmin({ token }) {
     async function handleCreateUser(e) {
         e.preventDefault();
         try {
-            await createUser({ username: newUser.username, password: newUser.password, full_name: newUser.full_name, email: newUser.email, initials: newUser.initials, role: newUser.role, can_create: newUser.can_create }, token);
+            await createUser({ username: newUser.username, password: newUser.password, full_name: newUser.full_name, email: newUser.email, initials: newUser.initials, role: newUser.role, can_create: newUser.can_create, can_exptec: newUser.can_exptec }, token);
             toast.success("Usuario creado");
-            setNewUser({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false });
+            setNewUser({ username: "", password: "", full_name: "", email: "", initials: "", role: "colaborador", can_create: false, can_exptec: true });
             await loadUsers();
         } catch (e) {
             toast.error(e.message);
@@ -109,6 +111,7 @@ export default function RegistrationAdmin({ token }) {
                 initials: u.initials,
                 role: u.role,
                 can_create: u.can_create_projects,
+                can_exptec: u.can_access_exptec,
             };
             if (u.new_password) payload.password = u.new_password;
             await updateUser(u.id, payload, token);
@@ -138,7 +141,7 @@ export default function RegistrationAdmin({ token }) {
 
     return (
         <div className="space-y-8">
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
                 <div>
                     <label className="text-sm font-medium">Rol por defecto al aprobar</label>
                     <select
@@ -155,6 +158,12 @@ export default function RegistrationAdmin({ token }) {
                     <label className="inline-flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={grantCreate} onChange={e => setGrantCreate(e.target.checked)} />
                         Permitir crear proyectos
+                    </label>
+                </div>
+                <div className="flex items-end">
+                    <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={grantExpTec} onChange={e => setGrantExpTec(e.target.checked)} />
+                        Acceso Exp. Tec.
                     </label>
                 </div>
                 <div className="md:col-span-2">
@@ -236,6 +245,10 @@ export default function RegistrationAdmin({ token }) {
                         <input type="checkbox" checked={newUser.can_create} onChange={e=>setNewUser({...newUser, can_create:e.target.checked})} />
                         Crear proyectos
                     </label>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={newUser.can_exptec} onChange={e=>setNewUser({...newUser, can_exptec:e.target.checked})} />
+                        Acceso Exp. Tec.
+                    </label>
                     <button className="rounded-lg bg-slate-900 text-white px-3 py-2 hover:bg-slate-800">Agregar</button>
                 </form>
 
@@ -249,6 +262,7 @@ export default function RegistrationAdmin({ token }) {
                                 <th>Iniciales</th>
                                 <th>Rol</th>
                                 <th>Puede crear</th>
+                                <th>Exp. Tec.</th>
                                 <th>Contraseña</th>
                                 <th className="text-right">Acciones</th>
                             </tr>
@@ -270,6 +284,7 @@ export default function RegistrationAdmin({ token }) {
                                                 </select>
                                             </td>
                                             <td><input type="checkbox" checked={u.can_create_projects} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, can_create_projects:e.target.checked}:x))} /></td>
+                                            <td><input type="checkbox" checked={u.can_access_exptec} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, can_access_exptec:e.target.checked}:x))} /></td>
                                             <td><input type="password" value={u.new_password || ""} onChange={e=>setUsers(us=>us.map(x=>x.id===u.id?{...x, new_password:e.target.value}:x))} placeholder="Nueva" className="border rounded px-2 py-1 w-32" /></td>
                                             <td className="text-right space-x-2">
                                                 <button onClick={()=>handleUpdateUser(u)} disabled={userBusy===u.id} className="rounded-md border px-2 py-1 text-xs hover:bg-slate-100">Guardar</button>
@@ -284,6 +299,7 @@ export default function RegistrationAdmin({ token }) {
                                             <td>{u.initials}</td>
                                             <td>{u.role}</td>
                                             <td>{u.can_create_projects ? "sí" : "no"}</td>
+                                            <td>{u.can_access_exptec ? "sí" : "no"}</td>
                                             <td>-</td>
                                             <td className="text-right space-x-2">
                                                 <button onClick={()=>setEditId(u.id)} className="rounded-md border px-2 py-1 text-xs hover:bg-slate-100">Editar</button>
