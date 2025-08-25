@@ -12,6 +12,7 @@ export default function App() {
     const [token, setToken] = useState(localStorage.getItem("apiToken") || "");
     const [role, setRole] = useState("");
     const [canCreate, setCanCreate] = useState(false);
+    const [canExpTec, setCanExpTec] = useState(false);
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -34,6 +35,7 @@ export default function App() {
             setToken(j.access_token);
             setRole(j.role);
             setCanCreate(j.can_create_projects);
+            setCanExpTec(j.can_access_exptec);
             setMyInitials(j.initials || "");
             setTab("proyectos");
             toast.success("Sesión iniciada");
@@ -62,6 +64,7 @@ export default function App() {
         setToken("");
         setRole("");
         setCanCreate(false);
+        setCanExpTec(false);
         setMyInitials("");
         localStorage.removeItem("apiToken");
     }
@@ -135,14 +138,14 @@ export default function App() {
                     <>
                         <div className="flex flex-wrap gap-2 mb-4">
                             <NavBtn active={tab === "expediente"} onClick={() => setTab("expediente")}>Expediente IMT</NavBtn>
-                            <NavBtn active={tab === "expTec"} onClick={() => setTab("expTec")} icon={Upload}>Expediente Técnico</NavBtn>
+                            {canExpTec && <NavBtn active={tab === "expTec"} onClick={() => setTab("expTec")} icon={Upload}>Expediente Técnico</NavBtn>}
                             <NavBtn active={tab === "proyectos"} onClick={() => setTab("proyectos")} icon={Settings2}>Proyectos</NavBtn>
                             {role === "admin" && (
                                 <NavBtn active={tab === "solicitudes"} onClick={() => setTab("solicitudes")} icon={ClipboardList}>Solicitudes</NavBtn>
                             )}
                         </div>
 
-                        {tab === "expTec" ? (
+                        {tab === "expTec" && canExpTec ? (
                             <div className="rounded-2xl border bg-white p-6 shadow-sm">
                                 <ExpTecTab token={token} readOnly={role === "auditor"} />
                             </div>

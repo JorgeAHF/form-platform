@@ -49,6 +49,7 @@ class User(Base):
     initials = Column(String(16), nullable=False)
     role = Column(String(32), nullable=False, default="colaborador")  # admin | colaborador | auditor
     can_create_projects = Column(Boolean, nullable=False, server_default="false")
+    can_access_exptec = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime, default=func.now())
 
 class Project(Base):
@@ -241,6 +242,7 @@ def safe_migrate():
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name varchar(255)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email varchar(255)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS initials varchar(16)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_exptec boolean DEFAULT true"))
         conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS full_name varchar(255)"))
         conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS email varchar(255)"))
         conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS initials varchar(16)"))
@@ -543,6 +545,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         "token_type": "bearer",
         "role": user.role,
         "can_create_projects": user.can_create_projects,
+        "can_access_exptec": user.can_access_exptec,
         "full_name": user.full_name,
         "email": user.email,
         "initials": user.initials,
@@ -554,6 +557,7 @@ def me(current: User = Depends(get_current_user)):
         "username": current.username,
         "role": current.role,
         "can_create_projects": current.can_create_projects,
+        "can_access_exptec": current.can_access_exptec,
         "full_name": current.full_name,
         "email": current.email,
         "initials": current.initials,
@@ -622,6 +626,7 @@ def approve_registration(
     req_id: int,
     role: str = Form("colaborador"),
     can_create: Optional[bool] = Form(None),
+    can_exptec: Optional[bool] = Form(None),
     db: Session = Depends(get_db),
     current: User = Depends(require_admin)
 ):
@@ -638,6 +643,7 @@ def approve_registration(
         raise HTTPException(409, "Usuario ya existe; solicitud marcada como rechazada")
 
     allow = can_create if can_create is not None else rr.want_create
+    exptec = can_exptec if can_exptec is not None else True
     user = User(
         username=rr.username,
         password_hash=rr.password_hash,
@@ -646,6 +652,7 @@ def approve_registration(
         email=rr.email,
         initials=rr.initials,
         can_create_projects=allow,
+        can_access_exptec=exptec,
     )
     db.add(user)
     rr.status = "approved"
@@ -856,7 +863,6 @@ def remove_member(project_id: int, user_id: int = Query(...), db: Session = Depe
     return {"ok": True}
 
 @app.get("/users")
-@app.get("/users")
 def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), current: User = Depends(get_current_user)):
     qry = db.query(User)
     if q:
@@ -873,6 +879,7 @@ def list_users(q: Optional[str] = Query(None), db: Session = Depends(get_db), cu
             "role": u.role,
             "created_at": u.created_at,
             "can_create_projects": u.can_create_projects,
+            "can_access_exptec": u.can_access_exptec,
         }
         for u in rows
     ]
@@ -886,6 +893,7 @@ def create_user(
     initials: str = Form(...),
     role: str = Form("colaborador"),
     can_create: bool = Form(False),
+    can_exptec: bool = Form(True),
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ):
@@ -899,6 +907,7 @@ def create_user(
         email=email.strip(),
         initials=initials.strip(),
         can_create_projects=can_create,
+        can_access_exptec=can_exptec,
     )
     db.add(u); db.commit()
     return {
@@ -909,6 +918,7 @@ def create_user(
         "initials": u.initials,
         "role": u.role,
         "can_create_projects": u.can_create_projects,
+        "can_access_exptec": u.can_access_exptec,
     }
 
 @app.patch("/users/{user_id}")
@@ -917,6 +927,7 @@ def update_user(
     role: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     can_create: Optional[bool] = Form(None),
+    can_exptec: Optional[bool] = Form(None),
     full_name: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
     initials: Optional[str] = Form(None),
@@ -932,6 +943,8 @@ def update_user(
         u.password_hash = bcrypt.hash(password)
     if can_create is not None:
         u.can_create_projects = can_create
+    if can_exptec is not None:
+        u.can_access_exptec = can_exptec
     if full_name:
         u.full_name = full_name
     if email:
@@ -957,6 +970,8 @@ def categories_tree(project_id: int, db: Session = Depends(get_db), current: Use
     if not proj:
         raise HTTPException(404, "Proyecto no existe")
     ensure_member(db, current, project_id, "viewer")
+    if not current.can_access_exptec:
+        raise HTTPException(403, "Sin acceso a expediente técnico")
     return {"project": proj.code, "type": proj.type, "tree": get_project_schema(proj.type)}
 
 @app.get("/projects/{project_id}/deliverables")
@@ -1261,6 +1276,8 @@ def upload_file(
 
     # Información técnica (categorías)
     if section_key and category_key:
+        if not current.can_access_exptec:
+            raise HTTPException(403, "Sin acceso a expediente técnico")
         dest_dir = resolve_folder_path(
             proj,
             section_key.strip(),
