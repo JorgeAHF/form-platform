@@ -1,0 +1,29 @@
+# Ignore Git files
+.git
+.gitignore
+
+# Environment variables
+.env
+*.env
+
+# Dependencies and caches
+node_modules
+__pycache__
+*.pyc
+
+# Build outputs and tests
+dist
+build
+tests
+coverage
+
+# Project-specific directories
+storage
+backend/venv
+backend/.venv
+web/node_modules
+web/dist
+web/build
+
+# Logs
+*.log
