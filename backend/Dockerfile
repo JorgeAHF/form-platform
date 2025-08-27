@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM python:3.11-slim AS builder
+FROM python:3.11.7-slim AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY . .
 
-FROM python:3.11-slim
+FROM python:3.11.7-slim
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Dependencias mínimas de runtime
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
-    libffi8 curl && \
+    libffi8 && \
     rm -rf /var/lib/apt/lists/*
 
 # Crear usuario sin privilegios
@@ -42,7 +42,8 @@ COPY --from=builder --chown=app:app /app /app
 USER app
 
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD \
+  python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
 ENTRYPOINT ["uvicorn", "app:app"]
 CMD ["--host","0.0.0.0","--port","8000"]
