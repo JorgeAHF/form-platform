@@ -5,6 +5,7 @@
 # Python caches and bytecode
 __pycache__
 *.pyc
+**/.pytest_cache
 
 # Virtual environments
 venv
@@ -17,3 +18,7 @@ coverage
 
 # Logs
 *.log
+
+# IDE and system files
+.vscode
+*.DS_Store
