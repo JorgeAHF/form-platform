@@ -1,28 +1,7 @@
-######################################################
-# Environment files
-.env
-*.env
-
-# Dependencies and build outputs
 node_modules
 dist
-build
-
-# Tests and coverage
-tests
-coverage
-**/.pytest_cache
-
-# Git and docker files
 .git
 .gitignore
-Dockerfile.dev
-Dockerfile.local
-
-# Logs
-npm-debug.log*
+Dockerfile*
+.dockerignore
 *.log
-
-# IDE and system files
-.vscode
-*.DS_Store

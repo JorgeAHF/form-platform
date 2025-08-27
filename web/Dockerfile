@@ -1,7 +1,7 @@
 # web/Dockerfile
 
 # Stage 1: build the application
-FROM node:20.11.1-alpine AS build
+FROM node:20-alpine AS build
 WORKDIR /app
 
 # Install dependencies required for the build
@@ -14,7 +14,8 @@ COPY . .
 RUN npm run build
 
 # Stage 2: serve the compiled assets with nginx
-FROM nginx:1.27.2-alpine
+FROM nginx:1.27-alpine
+RUN apk --no-cache upgrade
 COPY --chown=nginx:nginx --from=build /app/dist /usr/share/nginx/html
 USER 101
 EXPOSE 80
