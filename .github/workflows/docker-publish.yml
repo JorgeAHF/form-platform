@@ -13,6 +13,15 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: backend
+            context: backend
+            file: backend/Dockerfile
+          - service: web
+            context: web
+            file: web/Dockerfile
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -30,7 +39,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ env.IMAGE_NAME }}-${{ matrix.service }}
           flavor: latest=true
           tags: |
             type=ref,event=branch
@@ -40,24 +49,25 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}-${{ matrix.service }}:buildcache,mode=max
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          image: ${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ steps.meta.outputs.version }}
           format: spdx-json
-          output-file: sbom-${{ steps.meta.outputs.version }}.spdx.json
+          output-file: sbom-${{ matrix.service }}-${{ steps.meta.outputs.version }}.spdx.json
 
       - name: Scan image for vulnerabilities
         uses: aquasecurity/trivy-action@0.32.0
         with:
-          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          image-ref: ${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ steps.meta.outputs.version }}
           severity: CRITICAL
           exit-code: '1'
 
@@ -65,4 +75,4 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: sbom-${{ steps.meta.outputs.version }}.spdx.json
+          files: sbom-${{ matrix.service }}-${{ steps.meta.outputs.version }}.spdx.json
