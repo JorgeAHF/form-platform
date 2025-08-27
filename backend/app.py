@@ -515,6 +515,11 @@ def on_startup():
     create_db()
     safe_migrate()
 
+
+@app.get("/health", status_code=200)
+def health():
+    return {"status": "ok"}
+
 # -------- Auth --------
 @app.post("/auth/register")
 def register(
