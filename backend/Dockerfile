@@ -8,13 +8,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Dependencias para compilar paquetes (libffi para bcrypt)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential libffi-dev curl && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --user -r requirements.txt
+    pip install --user --no-cache-dir -r requirements.txt
 
 COPY . .
 
@@ -27,8 +28,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/home/app/.local/bin:$PATH
 
 # Dependencias mínimas de runtime
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libffi-dev curl && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libffi8 curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Crear usuario sin privilegios
