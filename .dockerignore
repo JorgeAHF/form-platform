@@ -11,6 +11,7 @@ Dockerfile*
 **/node_modules
 __pycache__
 *.pyc
+**/.pytest_cache
 
 # Build outputs and tests
 dist
@@ -27,3 +28,9 @@ web/build
 
 # Logs
 *.log
+
+# OS files
+*.DS_Store
+
+# IDE settings
+.vscode

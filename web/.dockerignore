@@ -10,6 +10,11 @@ build
 # Tests
 tests
 coverage
+**/.pytest_cache
 
 # Logs
 *.log
+
+# IDE and system files
+.vscode
+*.DS_Store
