@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Dependencias para compilar paquetes (libffi para bcrypt)
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     build-essential libffi-dev curl && \
     rm -rf /var/lib/apt/lists/*
@@ -28,7 +28,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/home/app/.local/bin:$PATH
 
 # Dependencias mínimas de runtime
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     libffi8 && \
     rm -rf /var/lib/apt/lists/*
