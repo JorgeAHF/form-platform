@@ -1,19 +1,23 @@
 # web/Dockerfile
 
 # Stage 1: build the application
-FROM node:20-alpine AS build
+FROM node:20.11.1-alpine AS build
 WORKDIR /app
+
+ARG NODE_ENV=production
+ENV NODE_ENV=$NODE_ENV
 
 # Install dependencies (use cache efficiently)
 COPY package.json package-lock.json* ./
-RUN npm ci || npm i
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # Copy source and build
 COPY . .
 RUN npm run build
 
 # Stage 2: serve with nginx
-FROM nginx:1.27-alpine
+FROM nginx:1.27.2-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 USER 101
