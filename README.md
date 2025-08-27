@@ -74,6 +74,6 @@ Actualiza periódicamente las versiones de parche de las imágenes utilizadas pa
 # Ejecutar solo la API
 docker run --env-file .env -p 8000:8000 -v $(pwd)/storage:/data form-platform-api
 
-# Levantar todos los servicios con Compose
+# Levanta todos los servicios con Compose
 docker compose up --build
 ```
