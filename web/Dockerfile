@@ -10,7 +10,7 @@ ENV NODE_ENV=$NODE_ENV
 # Install dependencies (use cache efficiently)
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+    npm ci --omit=dev
 
 # Copy source and build
 COPY . .
@@ -18,7 +18,7 @@ RUN npm run build
 
 # Stage 2: serve with nginx
 FROM nginx:1.27.2-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+COPY --chown=nginx:nginx --from=build /app/dist /usr/share/nginx/html
 USER 101
+EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://localhost/ || exit 1
