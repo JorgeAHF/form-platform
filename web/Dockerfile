@@ -21,4 +21,4 @@ FROM nginx:1.27.2-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 USER 101
-HEALTHCHECK CMD wget -qO- http://localhost/ || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://localhost/ || exit 1
