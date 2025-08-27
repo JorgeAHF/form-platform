@@ -1,11 +1,38 @@
 # Form Platform
 
+Plataforma para gestionar proyectos y sus entregables, permitiendo subir y
+organizar archivos de forma centralizada. Consta de una API basada en FastAPI
+y una interfaz web construida con React y TailwindCSS.
+
+## Estructura del proyecto
+
+- **backend/**: API REST en FastAPI y SQLAlchemy.
+- **web/**: interfaz de usuario con React, Vite y TailwindCSS.
+
 ## Configuración
 
 Copia el archivo de variables de entorno de ejemplo y ajusta los valores según sea necesario:
 
 ```bash
 cp .env.example .env
+```
+
+## Desarrollo local
+
+### Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app:app --reload
+```
+
+### Web
+
+```bash
+cd web
+npm install
+npm run dev
 ```
 
 ## Ejecutar con Docker/Compose
