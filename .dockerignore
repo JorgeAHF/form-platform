@@ -1,13 +1,14 @@
-# Ignore Git files
+# Ignore Git files and Docker configs
 .git
 .gitignore
+Dockerfile*
 
 # Environment variables
 .env
 *.env
 
 # Dependencies and caches
-node_modules
+**/node_modules
 __pycache__
 *.pyc
 
@@ -18,10 +19,9 @@ tests
 coverage
 
 # Project-specific directories
-storage
+storage/
 backend/venv
 backend/.venv
-web/node_modules
 web/dist
 web/build
 
