@@ -4,19 +4,16 @@
 FROM node:20.11.1-alpine AS build
 WORKDIR /app
 
-ARG NODE_ENV=production
-ENV NODE_ENV=$NODE_ENV
-
-# Install dependencies (use cache efficiently)
+# Install dependencies required for the build
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
+    npm ci
 
-# Copy source and build
+# Copy source files and build the production assets
 COPY . .
 RUN npm run build
 
-# Stage 2: serve with nginx
+# Stage 2: serve the compiled assets with nginx
 FROM nginx:1.27.2-alpine
 COPY --chown=nginx:nginx --from=build /app/dist /usr/share/nginx/html
 USER 101
