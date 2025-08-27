@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM python:3.11.7-slim AS builder
+FROM python:3.11.9-slim AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Dependencias para compilar paquetes (libffi para bcrypt)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+    apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential libffi-dev curl && \
     rm -rf /var/lib/apt/lists/*
 
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY . .
 
-FROM python:3.11.7-slim
+FROM python:3.11.9-slim
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Dependencias mínimas de runtime
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+    apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libffi8 && \
     rm -rf /var/lib/apt/lists/*
 

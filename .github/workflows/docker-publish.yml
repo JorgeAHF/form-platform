@@ -7,6 +7,10 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+  security-events: write
+
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/form-platform
 
@@ -24,13 +28,13 @@ jobs:
             file: web/Dockerfile
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -89,12 +93,12 @@ jobs:
           output: trivy-${{ matrix.service }}.sarif
 
       - name: Upload Trivy results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
 
       - name: Upload SBOM to release
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: sbom-${{ matrix.service }}-${{ steps.meta.outputs.version }}.spdx.json
