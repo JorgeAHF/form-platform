@@ -1,4 +1,3 @@
-import os
 import re
 import hashlib
 import io
@@ -6,6 +5,9 @@ import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
+from pydantic import ValidationError
+
+from settings import Settings
 
 from fastapi import (
     FastAPI, UploadFile, File, Form, Depends, HTTPException, status,
@@ -25,14 +27,22 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
 # ----------------- Config -----------------
-DATABASE_URL = os.getenv("DATABASE_URL")
-FILES_ROOT = Path(os.getenv("FILES_ROOT", "/data"))
-MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "50"))
-ALLOWED_EXT = {e.strip().lower() for e in os.getenv("ALLOWED_EXT", "pdf,docx,xlsx,jpg,png,zip").split(",")}
-JWT_SECRET = os.getenv("JWT_SECRET", "change_me")
+try:
+    settings = Settings()
+except ValidationError as exc:
+    missing = ", ".join(err["loc"][0] for err in exc.errors())
+    raise RuntimeError(
+        f"Missing required environment variables: {missing}"
+    ) from exc
+
+DATABASE_URL = settings.DATABASE_URL
+FILES_ROOT = settings.FILES_ROOT
+MAX_FILE_MB = settings.MAX_FILE_MB
+ALLOWED_EXT = {e.strip().lower() for e in settings.ALLOWED_EXT.split(",")}
+JWT_SECRET = settings.JWT_SECRET
 JWT_ALG = "HS256"
-ACCESS_TOKEN_EXPIRES_MIN = int(os.getenv("ACCESS_TOKEN_MIN", "120"))
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3001,http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
+ACCESS_TOKEN_EXPIRES_MIN = settings.ACCESS_TOKEN_MIN
+ALLOWED_ORIGINS = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
