@@ -37,6 +37,10 @@ cp .env.example .env
 - `./backend:/app` y `./web:/app` – Código fuente montado para desarrollo
 - `web_node_modules` – Dependencias de Node.js
 
+### Actualizaciones de parches
+
+Actualiza periódicamente las versiones de parche de las imágenes utilizadas para obtener las últimas correcciones de seguridad. Por ejemplo, usa `postgres:16.4` en lugar de `postgres:16`.
+
 ### Ejemplos de uso
 
 ```bash
