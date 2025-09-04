@@ -27,7 +27,7 @@ services:
       ALLOWED_EXT: ${ALLOWED_EXT}
       JWT_SECRET: ${JWT_SECRET}
       # Importante para CORS (Form.io y React dev server):
-      ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       AUTOSEED_ENABLE: ${AUTOSEED_ENABLE}
       AUTOSEED_PATH: /app/seed.json
       AUTOSNAPSHOT_ON_UPLOAD: ${AUTOSNAPSHOT_ON_UPLOAD}

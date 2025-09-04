@@ -19,4 +19,3 @@ RUN apk --no-cache upgrade
 COPY --chown=nginx:nginx --from=build /app/dist /usr/share/nginx/html
 USER 101
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://localhost/ || exit 1
