@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { listUsers, createUser, updateUser, deleteUser } from "./api";
-
-const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+import { API, listUsers, createUser, updateUser, deleteUser } from "./api";
 
 export default function RegistrationAdmin({ token }) {
     const [rows, setRows] = useState([]);

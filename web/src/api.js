@@ -1,5 +1,16 @@
 // web/src/api.js
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Determina la URL base de la API en este orden:
+// 1. window.__ENV__.API_URL (inyectado en runtime por env.js)
+// 2. import.meta.env.VITE_API_URL (definido al construir/desarrollar)
+// 3. "/api" (fallback relativo, ideal para proxy reverso)
+const runtimeApi = typeof window !== "undefined" && window.__ENV__?.API_URL;
+const buildApi = import.meta.env.VITE_API_URL;
+export const API =
+  runtimeApi ||
+  (buildApi && !/^https?:\/\/(localhost|127\.0\.0\.1)/.test(buildApi)
+    ? buildApi
+    : "") ||
+  "/api";
 
 // -------------- helpers --------------
 function authHeaders(token) {
@@ -285,7 +296,6 @@ export async function getProgressExpediente(projectId, token) {
 
 export async function downloadFileById(fileId, filename, token, opts = {}) {
     const { view = false } = opts;
-    const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
     let url = `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}`;
     if (view) {
         url += "&inline=1";
