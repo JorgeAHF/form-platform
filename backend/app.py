@@ -1203,7 +1203,8 @@ def list_files(
             "stage": ({"id": st.id, "code": st.code, "name": st.name} if st else None),
             "uploaded_at": fr.uploaded_at,
             "uploaded_by": (u.username if u else None),
-            "download_url": f"http://localhost:8000/download/{fr.id}",
+            # URL de descarga relativa; el cliente determinará la base
+            "download_url": f"/download/{fr.id}",
             "path": str(rel_path),
             "pending_delete": dr is not None,
         })
