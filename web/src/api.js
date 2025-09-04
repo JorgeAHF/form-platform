@@ -3,13 +3,9 @@
 // 1. window.__ENV__.API_URL (inyectado en runtime por env.js)
 // 2. import.meta.env.VITE_API_URL (definido al construir/desarrollar)
 // 3. "/api" (fallback relativo, ideal para proxy reverso)
-const runtimeApi = typeof window !== "undefined" && window.__ENV__?.API_URL;
-const buildApi = import.meta.env.VITE_API_URL;
 export const API =
-  runtimeApi ||
-  (buildApi && !/^https?:\/\/(localhost|127\.0\.0\.1)/.test(buildApi)
-    ? buildApi
-    : "") ||
+  (typeof window !== "undefined" && window.__ENV__?.API_URL) ||
+  import.meta.env.VITE_API_URL ||
   "/api";
 
 // -------------- helpers --------------
