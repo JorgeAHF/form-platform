@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     MAX_FILE_MB: int = 50
     ALLOWED_EXT: str = "pdf,docx,xlsx,jpg,png,zip"
     ACCESS_TOKEN_MIN: int = 120
-    ALLOWED_ORIGINS: str = ""
+    # Allow the Vite dev server to talk to the API out of the box.  Multiple
+    # origins are comma separated and can be overridden via the environment.
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
