@@ -44,7 +44,11 @@ JWT_ALG = "HS256"
 ACCESS_TOKEN_EXPIRES_MIN = settings.ACCESS_TOKEN_MIN
 ALLOWED_ORIGINS = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# When using SQLite in development we need to disable the thread check so that
+# the same connection can be shared across requests. ``connect_args`` is ignored
+# for other database backends.
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
