@@ -45,7 +45,7 @@ npm run dev
 | `POSTGRES_USER`       | Usuario de Postgres                              |
 | `POSTGRES_PASSWORD`   | Contraseña de Postgres                           |
 | `DATABASE_URL`        | Cadena de conexión a la base de datos            |
-| `JWT_SECRET`          | Clave para firmar los tokens JWT                 |
+| `JWT_SECRET`          | Clave para firmar los tokens JWT. Debe ser una cadena segura de al menos 32 caracteres en producción |
 | `MAX_FILE_MB`         | Tamaño máximo permitido para los archivos (MB)   |
 | `ALLOWED_EXT`         | Extensiones de archivo permitidas                |
 | `ALLOWED_ORIGINS`     | Orígenes permitidos para CORS (lista separada por comas) |
