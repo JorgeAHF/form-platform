@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { API, getProjects, listUsers, listProjectMembers, addProjectMember, deleteProjectMember } from "./api";
+import { getProjects, listUsers, listProjectMembers, addProjectMember, deleteProjectMember } from "./api";
+
+const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export default function ProjectAdmin({ token, role, canCreate, initials }) {
     const [type, setType] = useState("externo"); // externo | interno

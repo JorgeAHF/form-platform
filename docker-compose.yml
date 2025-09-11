@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16.4
+    image: postgres:16
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -19,17 +19,15 @@ services:
 
   api:
     build: ./backend
-    # ENTRYPOINT en la imagen ya ejecuta ``uvicorn app:app``,
-    # por lo que solo se pasan las opciones adicionales aquí.
-    command: ["--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       FILES_ROOT: /data
       MAX_FILE_MB: ${MAX_FILE_MB}
       ALLOWED_EXT: ${ALLOWED_EXT}
-      JWT_SECRET: ${JWT_SECRET}
-      # Orígenes permitidos para CORS (separados por comas)
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      JWT_SECRET: ${API_JWT_SECRET}
+      # Importante para CORS (Form.io y React dev server):
+      ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
       AUTOSEED_ENABLE: ${AUTOSEED_ENABLE}
       AUTOSEED_PATH: /app/seed.json
       AUTOSNAPSHOT_ON_UPLOAD: ${AUTOSNAPSHOT_ON_UPLOAD}

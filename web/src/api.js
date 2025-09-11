@@ -1,13 +1,5 @@
 // web/src/api.js
-// Determina la URL base de la API en este orden:
-// 1. ``window.__ENV__.API_URL`` (inyectado en runtime por ``env.js``)
-// 2. ``import.meta.env.VITE_API_URL`` (definido al construir/desarrollar)
-// 3. ``http://localhost:8000`` en modo dev para facilitar el desarrollo
-// 4. "/api" (fallback relativo, ideal para proxy reverso en producción)
-export const API =
-  (typeof window !== "undefined" && window.__ENV__?.API_URL) ||
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? "http://localhost:8000" : "/api");
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // -------------- helpers --------------
 function authHeaders(token) {
@@ -17,15 +9,6 @@ function asForm(obj) {
     const fd = new URLSearchParams();
     for (const [k, v] of Object.entries(obj)) fd.append(k, v);
     return fd;
-}
-
-async function readJson(r) {
-    const text = await r.text();
-    try {
-        return text ? JSON.parse(text) : {};
-    } catch {
-        return {};
-    }
 }
 
 // Subida con progreso real usando XHR (para mostrar barra)
@@ -56,33 +39,23 @@ function xhrUpload(url, formData, token, onProgress) {
 
 // -------------- auth --------------
 export async function login(username, password) {
-    let r;
-    try {
-        r = await fetch(`${API}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: asForm({ username, password })
-        });
-    } catch {
-        throw new Error("Error de red");
-    }
-    const j = await readJson(r);
+    const r = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: asForm({ username, password })
+    });
+    const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Credenciales inválidas");
     return j; // {access_token, token_type, role, can_create_projects, can_access_exptec}
 }
 
 export async function requestRegister(username, password, wantCreate = false, full_name, email, initials) {
-    let r;
-    try {
-        r = await fetch(`${API}/auth/request-register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: asForm({ username, password, want_create: wantCreate, full_name, email, initials }),
-        });
-    } catch {
-        throw new Error("Error de red");
-    }
-    const j = await readJson(r);
+    const r = await fetch(`${API}/auth/request-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: asForm({ username, password, want_create: wantCreate, full_name, email, initials }),
+    });
+    const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Error en solicitud");
     return j; // {ok, message}
 }
@@ -312,6 +285,7 @@ export async function getProgressExpediente(projectId, token) {
 
 export async function downloadFileById(fileId, filename, token, opts = {}) {
     const { view = false } = opts;
+    const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
     let url = `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}`;
     if (view) {
         url += "&inline=1";

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { API } from "./api";
+
+const API = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export default function MemberAdmin({ token }) {
     const [projects, setProjects] = useState([]);

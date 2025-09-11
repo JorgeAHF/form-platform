@@ -1,3 +1,4 @@
+import os
 import re
 import hashlib
 import io
@@ -5,9 +6,6 @@ import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
-from pydantic import ValidationError
-
-from settings import Settings
 
 from fastapi import (
     FastAPI, UploadFile, File, Form, Depends, HTTPException, status,
@@ -27,28 +25,16 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
 # ----------------- Config -----------------
-try:
-    settings = Settings()
-except ValidationError as exc:
-    missing = ", ".join(err["loc"][0] for err in exc.errors())
-    raise RuntimeError(
-        f"Missing required environment variables: {missing}"
-    ) from exc
-
-DATABASE_URL = settings.DATABASE_URL
-FILES_ROOT = settings.FILES_ROOT
-MAX_FILE_MB = settings.MAX_FILE_MB
-ALLOWED_EXT = {e.strip().lower() for e in settings.ALLOWED_EXT.split(",")}
-JWT_SECRET = settings.JWT_SECRET
+DATABASE_URL = os.getenv("DATABASE_URL")
+FILES_ROOT = Path(os.getenv("FILES_ROOT", "/data"))
+MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "50"))
+ALLOWED_EXT = {e.strip().lower() for e in os.getenv("ALLOWED_EXT", "pdf,docx,xlsx,jpg,png,zip").split(",")}
+JWT_SECRET = os.getenv("JWT_SECRET", "change_me")
 JWT_ALG = "HS256"
-ACCESS_TOKEN_EXPIRES_MIN = settings.ACCESS_TOKEN_MIN
-ALLOWED_ORIGINS = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+ACCESS_TOKEN_EXPIRES_MIN = int(os.getenv("ACCESS_TOKEN_MIN", "120"))
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3001,http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 
-# When using SQLite in development we need to disable the thread check so that
-# the same connection can be shared across requests. ``connect_args`` is ignored
-# for other database backends.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
@@ -518,11 +504,6 @@ app.add_middleware(
 def on_startup():
     create_db()
     safe_migrate()
-
-
-@app.get("/health", status_code=200)
-def health():
-    return {"status": "ok"}
 
 # -------- Auth --------
 @app.post("/auth/register")
@@ -1207,8 +1188,7 @@ def list_files(
             "stage": ({"id": st.id, "code": st.code, "name": st.name} if st else None),
             "uploaded_at": fr.uploaded_at,
             "uploaded_by": (u.username if u else None),
-            # URL de descarga relativa; el cliente determinará la base
-            "download_url": f"/download/{fr.id}",
+            "download_url": f"http://localhost:8000/download/{fr.id}",
             "path": str(rel_path),
             "pending_delete": dr is not None,
         })

@@ -12,7 +12,6 @@ import {
     FileAudio,
 } from "lucide-react";
 import {
-    API,
     getProjects,
     getCategoryTree,
     listFiles,
@@ -365,7 +364,8 @@ export default function ExpTecTab({ token, readOnly = false }) {
     }
 
     function previewUrl(fileId) {
-        return `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        return `${API_URL}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
     }
 
     function renderTree(node) {

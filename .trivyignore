@@ -1,4 +1,0 @@
-# libxml2 vulnerabilities are not exploitable when serving static files only
-CVE-2023-29469
-# libxslt vulnerabilities are not exploitable without XSLT processing
-CVE-2023-40369
