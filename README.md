@@ -35,6 +35,19 @@ npm install
 npm run dev
 ```
 
+### Configurar la URL del backend para la web
+
+La interfaz web necesita conocer la URL base de la API. Hay dos formas de definirla:
+
+1. Edita `web/public/env.js` y establece `window.__ENV__.API_URL` con la URL real del backend (por ejemplo, `https://mi-servidor/api`). El archivo se carga antes de `main.jsx`, por lo que la variable estará disponible en tiempo de ejecución.
+2. Define la variable de entorno `VITE_API_URL` al compilar:
+
+```bash
+cd web
+VITE_API_URL=https://mi-servidor/api npm run build
+```
+
+
 ## Ejecutar con Docker/Compose
 
 ### Variables de entorno requeridas

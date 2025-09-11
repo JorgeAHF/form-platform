@@ -1,4 +1,4 @@
 window.__ENV__ = {
-  // API_URL puede ser sobrescrito en runtime por Nginx
-  API_URL: ""
+  // API_URL debe apuntar al backend; reemplázalo durante el despliegue si es necesario
+  API_URL: "https://mi-servidor/api",
 };
