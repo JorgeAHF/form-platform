@@ -48,8 +48,11 @@ npm run dev
 | `JWT_SECRET`          | Clave para firmar los tokens JWT                 |
 | `MAX_FILE_MB`         | Tamaño máximo permitido para los archivos (MB)   |
 | `ALLOWED_EXT`         | Extensiones de archivo permitidas                |
+| `ALLOWED_ORIGINS`     | Orígenes permitidos para CORS (lista separada por comas) |
 | `AUTOSEED_ENABLE`     | Precarga datos en la base de datos al iniciar    |
 | `AUTOSNAPSHOT_ON_UPLOAD` | Genera un snapshot al subir un archivo        |
+
+Define `ALLOWED_ORIGINS` en `.env` con los dominios que pueden consumir la API. Para desarrollo puedes usar `http://localhost:5173,http://127.0.0.1:5173`.
 
 ### Puertos expuestos
 
