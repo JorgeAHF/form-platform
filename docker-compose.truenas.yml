@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${PGDATA_PATH}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      FILES_ROOT: /data
+      MAX_FILE_MB: ${MAX_FILE_MB}
+      ALLOWED_EXT: ${ALLOWED_EXT}
+      JWT_SECRET: ${API_JWT_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      AUTOSEED_ENABLE: ${AUTOSEED_ENABLE}
+      AUTOSEED_PATH: /app/seed.json
+      AUTOSNAPSHOT_ON_UPLOAD: ${AUTOSNAPSHOT_ON_UPLOAD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ${FILES_PATH}:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    command: npm run build && npm run preview -- --host 0.0.0.0 --port 5173
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
