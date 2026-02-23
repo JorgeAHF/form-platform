@@ -305,3 +305,100 @@ Borrar todo (incluye base de datos):
 ```
 docker compose down -v
 ```
+
+---
+
+# 📦 Instalación en TrueNAS SCALE como App (Custom App)
+
+Esta guía está pensada para TrueNAS SCALE usando **Apps → Discover Apps → Custom App**.
+
+## 1) Preparar datasets en TrueNAS
+
+En **Datasets**, crea por ejemplo:
+
+- `tank/apps/form-platform/pgdata` (base de datos)
+- `tank/apps/form-platform/files` (archivos del sistema)
+- `tank/apps/form-platform/app` (código del proyecto, opcional pero recomendado)
+
+> Recomendación: deja `pgdata` y `files` con snapshots automáticos.
+
+## 2) Copiar el proyecto al dataset
+
+Desde shell de TrueNAS o por SMB/SSH, deja el repo en:
+
+`/mnt/tank/apps/form-platform/app/form-platform`
+
+## 3) Crear archivo `.env.truenas`
+
+Dentro del repo, crea este archivo:
+
+```env
+POSTGRES_DB=form_platform
+POSTGRES_USER=fp_user
+POSTGRES_PASSWORD=cambia_esto
+
+API_JWT_SECRET=cambia_esto_muy_largo
+MAX_FILE_MB=50
+ALLOWED_EXT=pdf,docx,xlsx,jpg,png,zip
+ALLOWED_ORIGINS=http://IP_TRUENAS:5173
+
+AUTOSEED_ENABLE=false
+AUTOSNAPSHOT_ON_UPLOAD=false
+
+PGDATA_PATH=/mnt/tank/apps/form-platform/pgdata
+FILES_PATH=/mnt/tank/apps/form-platform/files
+```
+
+## 4) Deploy con compose optimizado para TrueNAS
+
+El repositorio incluye `docker-compose.truenas.yml` para despliegue continuo (sin bind mounts de código y sin `--reload` del backend).
+
+Desde shell:
+
+```bash
+cd /mnt/tank/apps/form-platform/app/form-platform
+docker compose --env-file .env.truenas -f docker-compose.truenas.yml up -d --build
+```
+
+Verifica estado:
+
+```bash
+docker compose --env-file .env.truenas -f docker-compose.truenas.yml ps
+```
+
+## 5) Publicar como App en interfaz de TrueNAS (opcional UI)
+
+Si prefieres hacerlo totalmente por UI:
+
+1. Apps → **Discover Apps** → **Custom App**.
+2. Tipo: **Docker Compose**.
+3. Pega el contenido de `docker-compose.truenas.yml`.
+4. En variables, carga las mismas de `.env.truenas`.
+5. Mapea puertos:
+   - `5173` (web)
+   - `8000` (api)
+6. Despliega.
+
+## 6) Inicializar admin
+
+Después del primer arranque:
+
+```bash
+curl -X POST http://IP_TRUENAS:8000/auth/register \
+  -F "username=admin" \
+  -F "password=admin123" \
+  -F "full_name=Admin Usuario" \
+  -F "email=admin@example.com" \
+  -F "initials=AU"
+```
+
+## 7) Acceso
+
+- Frontend: `http://IP_TRUENAS:5173`
+- API: `http://IP_TRUENAS:8000`
+
+## Notas importantes para TrueNAS
+
+- Cambia secretos antes de exponer en red.
+- Si usarás dominio/HTTPS, coloca un reverse proxy (Traefik/NPM/Caddy) y ajusta `ALLOWED_ORIGINS`.
+- Evita usar `docker-compose.yml` de desarrollo en producción porque monta código local y usa `--reload`.
