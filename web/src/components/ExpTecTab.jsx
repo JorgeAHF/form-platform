@@ -20,6 +20,7 @@ import {
     requestDeleteFile,
     bulkDownloadFiles,
     bulkRequestDelete,
+    API,
 } from "../api";
 
 function bytes(n) {
@@ -364,8 +365,7 @@ export default function ExpTecTab({ token, readOnly = false }) {
     }
 
     function previewUrl(fileId) {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-        return `${API_URL}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
+        return `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}&inline=1`;
     }
 
     function renderTree(node) {
