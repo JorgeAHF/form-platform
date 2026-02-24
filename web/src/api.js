@@ -1,5 +1,16 @@
 // web/src/api.js
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+function getApiBaseUrl() {
+    const envBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE;
+    if (envBase) return envBase;
+
+    if (typeof window !== "undefined" && window.location) {
+        return `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+
+    return "http://127.0.0.1:8000";
+}
+
+export const API = getApiBaseUrl();
 
 // -------------- helpers --------------
 function authHeaders(token) {
@@ -285,7 +296,6 @@ export async function getProgressExpediente(projectId, token) {
 
 export async function downloadFileById(fileId, filename, token, opts = {}) {
     const { view = false } = opts;
-    const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
     let url = `${API}/download/${fileId}?access_token=${encodeURIComponent(token)}`;
     if (view) {
         url += "&inline=1";
