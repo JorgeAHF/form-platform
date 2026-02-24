@@ -405,3 +405,74 @@ export async function deleteProjectMember(projectId, userId, token) {
     if (!r.ok) throw new Error(j.detail || "Error eliminando miembro");
     return j;
 }
+
+
+export async function updateProject(projectId, data, token) {
+    const fd = asForm(data);
+    const r = await fetch(`${API}/projects/${projectId}`, {
+        method: "PATCH",
+        headers: authHeaders(token),
+        body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error actualizando proyecto");
+    return j;
+}
+
+export async function deleteProject(projectId, token) {
+    const r = await fetch(`${API}/projects/${projectId}`, {
+        method: "DELETE",
+        headers: authHeaders(token),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error eliminando proyecto");
+    return j;
+}
+
+export async function requestProjectDelete(projectId, reason, token) {
+    const r = await fetch(`${API}/projects/${projectId}/request-delete`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/x-www-form-urlencoded" },
+        body: asForm({ reason }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "No se pudo solicitar la eliminación del proyecto");
+    return j;
+}
+
+export async function listProjectDeleteRequests(token) {
+    const r = await fetch(`${API}/project-delete-requests`, { headers: authHeaders(token) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Error listando solicitudes de proyecto");
+    return j.items || [];
+}
+
+export async function approveProjectDeleteRequest(reqId, token) {
+    const r = await fetch(`${API}/project-delete-requests/${reqId}/approve`, {
+        method: "POST",
+        headers: authHeaders(token),
+    });
+    let j = {};
+    try {
+        j = await r.json();
+    } catch {
+        /* sin cuerpo */
+    }
+    if (!r.ok) throw new Error(j.detail || "Error aprobando solicitud de proyecto");
+    return j;
+}
+
+export async function rejectProjectDeleteRequest(reqId, token) {
+    const r = await fetch(`${API}/project-delete-requests/${reqId}/reject`, {
+        method: "POST",
+        headers: authHeaders(token),
+    });
+    let j = {};
+    try {
+        j = await r.json();
+    } catch {
+        /* sin cuerpo */
+    }
+    if (!r.ok) throw new Error(j.detail || "Error rechazando solicitud de proyecto");
+    return j;
+}
