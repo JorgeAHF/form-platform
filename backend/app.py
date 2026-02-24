@@ -3,6 +3,7 @@ import re
 import hashlib
 import io
 import zipfile
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
@@ -150,6 +151,18 @@ class FileDeleteRequest(Base):
     decided_at = Column(DateTime, nullable=True)
     decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+
+class ProjectDeleteRequest(Base):
+    __tablename__ = "project_delete_requests"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String(16), nullable=False, default="pending")  # pending|approved|rejected
+    requested_at = Column(DateTime, default=func.now())
+    decided_at = Column(DateTime, nullable=True)
+    decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
 # ---- Wire del seeder (import tardío para evitar circular) ----
 _seed_project = None
 try:
@@ -246,6 +259,18 @@ def safe_migrate():
         conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS full_name varchar(255)"))
         conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS email varchar(255)"))
         conn.execute(text("ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS initials varchar(16)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS project_delete_requests (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                requested_by INTEGER NOT NULL REFERENCES users(id),
+                reason TEXT NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                requested_at TIMESTAMP DEFAULT NOW(),
+                decided_at TIMESTAMP NULL,
+                decided_by INTEGER NULL REFERENCES users(id)
+            )
+        """))
 
 def get_db():
     db = SessionLocal()
@@ -319,6 +344,28 @@ def require_owner_or_admin(db: Session, project_id: int, user: User) -> Project:
     if not is_admin(user) and proj.created_by != user.id:
         raise HTTPException(403, "Solo el dueño puede gestionar miembros")
     return proj
+
+
+def delete_project_by_id(db: Session, project_id: int):
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "Proyecto no existe")
+
+    folder = FILES_ROOT / "projects" / proj.code
+
+    db.query(ProjectDeleteRequest).filter(ProjectDeleteRequest.project_id == project_id).delete(synchronize_session=False)
+    db.query(FileDeleteRequest).filter(
+        FileDeleteRequest.file_id.in_(db.query(FileRecord.id).filter(FileRecord.project_id == project_id))
+    ).delete(synchronize_session=False)
+    db.query(ProjectMember).filter(ProjectMember.project_id == project_id).delete(synchronize_session=False)
+    db.query(FileRecord).filter(FileRecord.project_id == project_id).delete(synchronize_session=False)
+    db.query(Stage).filter(Stage.project_id == project_id).delete(synchronize_session=False)
+    db.delete(proj)
+    db.commit()
+
+    if folder.exists():
+        shutil.rmtree(folder, ignore_errors=True)
+
 
 # ----------------- Helpers: code & folders -----------------
 def validate_project_code(code: str, ptype: str):
@@ -763,6 +810,124 @@ def list_projects(db: Session = Depends(get_db), current: User = Depends(get_cur
         my_role = role or ("owner" if is_owner else None)
         out.append({"id": p.id, "code": p.code, "name": p.name, "type": p.type, "role": my_role, "is_owner": is_owner})
     return out
+
+@app.patch("/projects/{project_id}")
+def update_project(
+    project_id: int,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    proj = require_owner_or_admin(db, project_id, current)
+    clean_name = (name or "").strip()
+    if not clean_name:
+        raise HTTPException(400, "Nombre de proyecto requerido")
+    proj.name = clean_name
+    db.commit()
+    return {"ok": True, "project": {"id": proj.id, "code": proj.code, "name": proj.name, "type": proj.type}}
+
+
+@app.delete("/projects/{project_id}")
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    delete_project_by_id(db, project_id)
+    return {"ok": True}
+
+
+@app.post("/projects/{project_id}/request-delete")
+def request_project_delete(
+    project_id: int,
+    reason: str = Form(...),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    if is_admin(current):
+        raise HTTPException(400, "Admins pueden eliminar directamente el proyecto")
+
+    ensure_member(db, current, project_id, "uploader")
+    clean_reason = (reason or "").strip()
+    if not clean_reason:
+        raise HTTPException(400, "Motivo requerido")
+
+    exists = db.query(ProjectDeleteRequest).filter(
+        ProjectDeleteRequest.project_id == project_id,
+        ProjectDeleteRequest.status == "pending",
+    ).first()
+    if exists:
+        raise HTTPException(400, "Ya existe una solicitud pendiente para este proyecto")
+
+    req = ProjectDeleteRequest(project_id=project_id, requested_by=current.id, reason=clean_reason, status="pending")
+    db.add(req)
+    db.commit()
+    return {"ok": True, "request_id": req.id}
+
+
+@app.get("/project-delete-requests")
+def list_project_delete_requests(
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    rows = (
+        db.query(ProjectDeleteRequest, Project, User)
+        .join(Project, Project.id == ProjectDeleteRequest.project_id)
+        .join(User, User.id == ProjectDeleteRequest.requested_by)
+        .filter(ProjectDeleteRequest.status == "pending")
+        .order_by(ProjectDeleteRequest.requested_at.desc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "reason": r.reason,
+                "status": r.status,
+                "requested_at": r.requested_at,
+                "requested_by": u.username,
+                "project": {"id": p.id, "code": p.code, "name": p.name},
+            }
+            for r, p, u in rows
+        ]
+    }
+
+
+@app.post("/project-delete-requests/{req_id}/approve")
+def approve_project_delete_request(
+    req_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    req = db.get(ProjectDeleteRequest, req_id)
+    if not req or req.status != "pending":
+        raise HTTPException(404, "Solicitud no encontrada")
+
+    req.status = "approved"
+    req.decided_at = func.now()
+    req.decided_by = current.id
+    db.commit()
+
+    delete_project_by_id(db, req.project_id)
+    return {"ok": True}
+
+
+@app.post("/project-delete-requests/{req_id}/reject")
+def reject_project_delete_request(
+    req_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    req = db.get(ProjectDeleteRequest, req_id)
+    if not req or req.status != "pending":
+        raise HTTPException(404, "Solicitud no encontrada")
+
+    req.status = "rejected"
+    req.decided_at = func.now()
+    req.decided_by = current.id
+    db.commit()
+    return {"ok": True}
+
 
 @app.post("/projects/{project_id}/stages")
 def add_stage(

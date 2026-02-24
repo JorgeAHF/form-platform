@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { API, getProjects, listUsers, listProjectMembers, addProjectMember, deleteProjectMember } from "./api";
+import { API, getProjects, listUsers, listProjectMembers, addProjectMember, deleteProjectMember, updateProject, deleteProject, requestProjectDelete } from "./api";
 
 export default function ProjectAdmin({ token, role, canCreate, initials }) {
     const [type, setType] = useState("externo"); // externo | interno
@@ -142,6 +142,50 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
         refreshProjects();
     }
 
+    async function handleEditProject(proj) {
+        const newName = window.prompt("Nuevo nombre del proyecto", proj.name);
+        if (newName === null) return;
+        const cleanName = newName.trim();
+        if (!cleanName) {
+            toast.error("El nombre no puede estar vacío");
+            return;
+        }
+        try {
+            await updateProject(proj.id, { name: cleanName }, token);
+            toast.success("Proyecto actualizado");
+            await refreshProjects();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    }
+
+    async function handleDeleteProject(proj) {
+        if (!window.confirm(`¿Eliminar el proyecto ${proj.code}? Esta acción no se puede deshacer.`)) return;
+        try {
+            await deleteProject(proj.id, token);
+            toast.success("Proyecto eliminado");
+            await refreshProjects();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    }
+
+    async function handleRequestDeleteProject(proj) {
+        const reason = window.prompt("Motivo de la solicitud de eliminación", "");
+        if (reason === null) return;
+        if (!reason.trim()) {
+            toast.error("Debes escribir un motivo");
+            return;
+        }
+        try {
+            await requestProjectDelete(proj.id, reason.trim(), token);
+            toast.success("Solicitud enviada");
+        } catch (e) {
+            toast.error(e.message);
+        }
+    }
+
+
     const owned = projects.filter(p => p.is_owner);
     const member = role === "auditor" ? projects : projects.filter(p => !p.is_owner);
 
@@ -235,8 +279,14 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
                                                     <td>{p.code}</td>
                                                     <td>{p.name}</td>
                                                     <td>{roleLabel("owner")}</td>
-                                                    <td className="text-right">
+                                                    <td className="text-right space-x-2">
                                                         <button onClick={() => openMemberManager(p)} className="rounded-md border px-3 py-1.5 text-slate-700 hover:bg-slate-100">Miembros</button>
+                                                        <button onClick={() => handleEditProject(p)} className="rounded-md border px-3 py-1.5 text-slate-700 hover:bg-slate-100">Editar</button>
+                                                        {role === "admin" ? (
+                                                            <button onClick={() => handleDeleteProject(p)} className="rounded-md border border-red-300 px-3 py-1.5 text-red-700 hover:bg-red-50">Eliminar</button>
+                                                        ) : (
+                                                            <button onClick={() => handleRequestDeleteProject(p)} className="rounded-md border border-amber-300 px-3 py-1.5 text-amber-700 hover:bg-amber-50">Solicitar eliminación</button>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -255,6 +305,7 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
                                                 <th>Código</th>
                                                 <th>Nombre</th>
                                                 {role !== "auditor" && <th>Mi rol</th>}
+                                                {role === "colaborador" && <th className="text-right">Acciones</th>}
                                             </tr>
                                         </thead>
                                         <tbody className="[&>tr]:border-t [&>td]:px-3 [&>td]:py-2">
@@ -263,6 +314,11 @@ export default function ProjectAdmin({ token, role, canCreate, initials }) {
                                                     <td>{p.code}</td>
                                                     <td>{p.name}</td>
                                                     {role !== "auditor" && <td>{roleLabel(p.role)}</td>}
+                                                    {role === "colaborador" && (
+                                                        <td className="text-right">
+                                                            <button onClick={() => handleRequestDeleteProject(p)} className="rounded-md border border-amber-300 px-3 py-1.5 text-amber-700 hover:bg-amber-50">Solicitar eliminación</button>
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             ))}
                                         </tbody>
